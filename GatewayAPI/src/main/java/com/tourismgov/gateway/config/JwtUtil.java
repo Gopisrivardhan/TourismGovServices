@@ -13,7 +13,7 @@ import java.security.Key;
 public class JwtUtil {
 
     // Ensure this exactly matches the secret key used in your USER-SERVICE/Auth Service to generate the token
-    @Value("${jwt.secret:YOUR_DEFAULT_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG}")
+    @Value("${jwt.secret:9e01659eccf3ae154d586e34a6d708478745f3be1608515813e056d4067624a7c7091c946ec358d918a1f68da547f62186538bf07d3cccb66a80b89587aac257}")
     private String secret;
 
     public void validateToken(final String token) {

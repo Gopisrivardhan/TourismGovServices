@@ -13,6 +13,7 @@ public class RouteValidator {
     public static final List<String> openApiEndpoints = List.of(
             "/tourismgov/v1/auth/register",
             "/tourismgov/v1/auth/login",
+            "/tourismgov/v1/tourist/create", 
             "/eureka"
     );
 
@@ -22,7 +23,7 @@ public class RouteValidator {
 
         if (path.contains("/tourismgov/v1/events") && HttpMethod.GET.equals(method)) {
             if (!path.contains("/bookings")) {
-                return false; 
+                return false; // Not secured
             }
         }
 
