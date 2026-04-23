@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tourismgov.program.client.EventClient;
 import com.tourismgov.program.client.NotificationClient;
 import com.tourismgov.program.client.UserClient;
+import com.tourismgov.program.dto.AuditLogRequest;
 import com.tourismgov.program.dto.ProgramRequest;
 import com.tourismgov.program.dto.ProgramResponse;
 import com.tourismgov.program.enums.ProgramStatus;
@@ -36,6 +37,7 @@ public class TourismProgramServiceImpl implements TourismProgramService {
 
     private static final String ENTITY_NAME = "Tourism Program";
     private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
     private static final String MODULE_NAME = "ProgramModule";
 
     // Local Repositories
@@ -51,21 +53,32 @@ public class TourismProgramServiceImpl implements TourismProgramService {
     @Transactional
     public ProgramResponse createProgram(ProgramRequest request) {
         log.info("Creating Tourism Program: {}", request.getTitle());
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
+        // ✅ NEW: Duplicate Check
+        if (programRepository.existsByTitle(request.getTitle())) {
+            log.warn("Duplicate program creation attempt blocked for title: {}", request.getTitle());
+            logAuditSafe(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
+            throw new IllegalStateException("A program with this title already exists.");
+        }
         
         // 1. Strict Date Validation
-        validateProgramDates(request.getStartDate(), request.getEndDate(), true);
+        try {
+            validateProgramDates(request.getStartDate(), request.getEndDate(), true);
+        } catch (IllegalArgumentException e) {
+            logAuditSafe(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
+            throw e;
+        }
 
         TourismProgram program = new TourismProgram();
         mapRequestToEntity(request, program);
         
-        // Using Enum directly for type safety
         program.setStatus(ProgramStatus.PLANNED);
 
         TourismProgram saved = programRepository.save(program);
-        Long currentUserId = SecurityUtils.getCurrentUserId();
         
         // 2. Cross-Service Audit Logging
-        userClient.logAction(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
+        logAuditSafe(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
 
         // 3. Cross-Service Notification Alert
         try {
@@ -78,27 +91,31 @@ public class TourismProgramServiceImpl implements TourismProgramService {
                     "SYSTEM"
             );
         } catch (Exception e) {
-            log.error("Failed to send creation notification to Notification Service: {}", e.getMessage());
+            log.error("Failed to send creation notification: {}", e.getMessage());
         }
 
         return mapToProgramResponse(saved);
     }
-
     @Override
     @Transactional
     public ProgramResponse updateProgramStatus(Long id, String statusString) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         TourismProgram p = programRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_NAME, id));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, "UPDATE_STATUS", MODULE_NAME, STATUS_FAILED);
+                    return new ResourceNotFoundException(ENTITY_NAME, id);
+                });
         
         try {
             ProgramStatus status = ProgramStatus.valueOf(statusString.toUpperCase());
             p.setStatus(status);
         } catch (IllegalArgumentException e) {
+            logAuditSafe(currentUserId, "UPDATE_STATUS", MODULE_NAME, STATUS_FAILED);
             throw new IllegalArgumentException("Invalid status provided. Allowed: PLANNED, ACTIVE, COMPLETED, CANCELLED");
         }
 
         TourismProgram updated = programRepository.save(p);
-        userClient.logAction(SecurityUtils.getCurrentUserId(), "UPDATE_STATUS", MODULE_NAME, STATUS_SUCCESS);
+        logAuditSafe(currentUserId, "UPDATE_STATUS", MODULE_NAME, STATUS_SUCCESS);
         
         return mapToProgramResponse(updated);
     }
@@ -134,34 +151,53 @@ public class TourismProgramServiceImpl implements TourismProgramService {
     @Override 
     @Transactional
     public ProgramResponse updateProgram(Long programId, ProgramRequest request) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         TourismProgram program = programRepository.findById(programId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_NAME, programId));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, "UPDATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
+                    return new ResourceNotFoundException(ENTITY_NAME, programId);
+                });
 
-        // Validate dates (isNew = false means it can keep its original past start date if it's already active)
-        validateProgramDates(request.getStartDate(), request.getEndDate(), false);
+        try {
+            // Validate dates (isNew = false means it can keep its original past start date if it's already active)
+            validateProgramDates(request.getStartDate(), request.getEndDate(), false);
+        } catch (IllegalArgumentException e) {
+            logAuditSafe(currentUserId, "UPDATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
+            throw e;
+        }
+
         mapRequestToEntity(request, program);
         
         TourismProgram updated = programRepository.save(program);
-        userClient.logAction(SecurityUtils.getCurrentUserId(), "UPDATE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
+        logAuditSafe(currentUserId, "UPDATE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
         return mapToProgramResponse(updated);
     }
 
     @Override 
     @Transactional
     public void deleteProgram(Long programId) {
+        log.info("Soft-deleting (cancelling) Program ID: {}", programId);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         TourismProgram program = programRepository.findById(programId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_NAME, programId));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, "DELETE_PROGRAM", MODULE_NAME, STATUS_FAILED);
+                    return new ResourceNotFoundException(ENTITY_NAME, programId);
+                });
         
-        // Microservice approach: Notify Event Service to unlink this program from its events
+        // 1. Change local status to CANCELLED instead of deleting the row
+        program.setStatus(ProgramStatus.CANCELLED);
+        programRepository.save(program);
+
+        // 2. Notify Event Service to cancel all linked events
         try {
-            eventClient.unlinkProgramFromAllEvents(programId);
+            eventClient.cancelEventsByProgram(programId);
         } catch (Exception e) {
-            log.error("Failed to communicate with Event Service for cleanup. Deletion aborted to prevent orphaned records.", e);
-            throw new IllegalStateException("Cannot delete program: Event Service is unreachable.");
+            log.error("Failed to cancel linked events in Event Service: {}", e.getMessage());
+            // We don't throw an exception here because the Program is already cancelled locally
         }
         
-        programRepository.delete(program);
-        userClient.logAction(SecurityUtils.getCurrentUserId(), "DELETE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
+        logAuditSafe(currentUserId, "DELETE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
     }
 
     @Override 
@@ -220,15 +256,21 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         // Safely map the enum back to a String for the DTO
         res.setStatus(program.getStatus() != null ? program.getStatus().name() : null);
         
-        // Fetch linked Heritage Site IDs from the Event microservice safely
-        try {
-            List<Long> siteIds = eventClient.getSiteIdsByProgram(program.getProgramId());
-            res.setHeritageSiteIds(siteIds);
-        } catch (Exception e) {
-            log.warn("Could not fetch Heritage Site IDs from Event Service for Program ID: {}", program.getProgramId());
-            res.setHeritageSiteIds(List.of()); // Fallback to empty list
-        }
-        
         return res;
+    }
+
+    // --- Private Fault-Tolerant Audit Log Method ---
+    private void logAuditSafe(Long userId, String action, String resource, String status) {
+        try {
+            AuditLogRequest auditRequest = new AuditLogRequest();
+            auditRequest.setUserId(userId);
+            auditRequest.setAction(action);
+            auditRequest.setResource(resource);
+            auditRequest.setStatus(status);
+            
+            userClient.logAction(auditRequest);
+        } catch (Exception e) {
+            log.error("Failed to push audit log to USER-SERVICE: {}", e.getMessage());
+        }
     }
 }

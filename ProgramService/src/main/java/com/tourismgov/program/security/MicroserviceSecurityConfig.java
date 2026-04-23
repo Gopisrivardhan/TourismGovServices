@@ -22,8 +22,6 @@ public class MicroserviceSecurityConfig {
     private static final String MANAGER = "MANAGER";
     private static final String AUDITOR = "AUDITOR";
     private static final String COMPLIANCE = "COMPLIANCE";
-    private static final String TOURIST = "TOURIST";
-
     private final GatewayHeaderFilter gatewayHeaderFilter;
 
     @Bean
@@ -33,33 +31,36 @@ public class MicroserviceSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 
                 // ==========================================
-                // 1. EVENT ENDPOINTS (/tourismgov/v1/events)
+                // 1. TOURISM PROGRAM ENDPOINTS (/tourismgov/v1/programs)
                 // ==========================================
-                // Anyone can view events and paged events
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/**").permitAll()
+                // Internal Reporting: Budget reports are strictly for higher-level internal staff and auditors
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/programs/*/budget-report").hasAnyRole(ADMIN, MANAGER, AUDITOR, COMPLIANCE)
+
+                // Public Access: Anyone can view the catalog of active tourism programs (Tourists, Unauthenticated users)
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/programs", "/tourismgov/v1/programs/*", "/tourismgov/v1/programs/paged").permitAll()
                 
-                // Only staff can create, update, or delete events
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/events/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/events/*/status").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/events/*").hasRole(ADMIN)
+                // Program Management: Only Admins and Program Managers can create or fully update a program
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/programs").hasAnyRole(ADMIN, MANAGER)
+                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/programs/*").hasAnyRole(ADMIN, MANAGER)
+                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/programs/*/status").hasAnyRole(ADMIN, MANAGER)
+                
+                // Only Administrators can delete a whole tourism program
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/programs/*").hasRole(ADMIN)
 
                 // ==========================================
-                // 2. BOOKING ENDPOINTS (/tourismgov/v1)
+                // 2. RESOURCE ALLOCATION ENDPOINTS (/tourismgov/v1/resources)
                 // ==========================================
-                // Tourists (and staff) making and managing their own bookings
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events/*/bookings").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/bookings/*/status").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/tourist/*").hasAnyRole(TOURIST, OFFICER, ADMIN)
+                // Resource Management: Admins and Program Managers allocate and update resources (Funds, Staff, Venues)
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/resources/program/*").hasAnyRole(ADMIN, MANAGER)
+                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/resources/*/status").hasAnyRole(ADMIN, MANAGER)
                 
-                // Staff/Auditors viewing global booking data
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
+                // Viewing Resources: Internal staff and auditors can view allocated resources (Tourists do not need to see this)
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/resources/program/*").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
                 
-                // Specific booking ID lookups
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/*").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE, TOURIST)
+                // Only Administrators can delete a resource record entirely
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/resources/*").hasRole(ADMIN)
 
+                // Fallback: Any other request must be authenticated
                 .anyRequest().authenticated()
             )
             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);

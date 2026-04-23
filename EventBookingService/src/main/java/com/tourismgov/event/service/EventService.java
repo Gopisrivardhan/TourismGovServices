@@ -13,6 +13,7 @@ public interface EventService {
     EventResponse createEvent(CreateEventRequest request);
     
     Page<EventResponse> getEventsPaged(String status, int page, int size);
+    void cancelEventsByProgram(Long programId);
     
     List<EventResponse> getAllEvents();
     

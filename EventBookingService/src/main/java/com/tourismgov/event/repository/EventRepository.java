@@ -16,6 +16,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     
     // CHANGED: 'site' and 'program' are now flat Long IDs, no underscore needed
     List<Event> findBySiteId(Long siteId);
+    boolean existsByTitleAndSiteIdAndDate(String title, Long siteId, LocalDateTime date);
+    boolean existsByTitleAndSiteIdAndDateAndEventIdNot(String title, Long siteId, LocalDateTime date, Long eventId);
     List<Event> findByProgramId(Long programId);
 
     List<Event> findBySiteIdAndProgramId(Long siteId, Long programId);

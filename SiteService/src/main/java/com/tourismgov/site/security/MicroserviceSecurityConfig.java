@@ -22,7 +22,6 @@ public class MicroserviceSecurityConfig {
     private static final String MANAGER = "MANAGER";
     private static final String AUDITOR = "AUDITOR";
     private static final String COMPLIANCE = "COMPLIANCE";
-    private static final String TOURIST = "TOURIST";
 
     private final GatewayHeaderFilter gatewayHeaderFilter;
 
@@ -33,33 +32,33 @@ public class MicroserviceSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 
                 // ==========================================
-                // 1. EVENT ENDPOINTS (/tourismgov/v1/events)
+                // 1. HERITAGE SITE ENDPOINTS (/tourismgov/v1/sites)
                 // ==========================================
-                // Anyone can view events and paged events
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/**").permitAll()
+                // Anyone (including unauthenticated public/tourists) can view heritage sites
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/sites", "/tourismgov/v1/sites/*").permitAll()
                 
-                // Only staff can create, update, or delete events
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/events/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/events/*/status").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/events/*").hasRole(ADMIN)
+                // Only internal staff can create or update heritage sites
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/sites").hasAnyRole(ADMIN, MANAGER, OFFICER)
+                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/sites/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
+                
+                // Only Administrators can delete a heritage site
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/sites/*").hasRole(ADMIN)
 
                 // ==========================================
-                // 2. BOOKING ENDPOINTS (/tourismgov/v1)
+                // 2. PRESERVATION ACTIVITY ENDPOINTS (/tourismgov/v1/preservation)
                 // ==========================================
-                // Tourists (and staff) making and managing their own bookings
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events/*/bookings").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/bookings/*/status").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/tourist/*").hasAnyRole(TOURIST, OFFICER, ADMIN)
+                // Staff and officers logging and updating maintenance/preservation activities
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/preservation/site/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
+                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/preservation/*/status").hasAnyRole(ADMIN, MANAGER, OFFICER)
                 
-                // Staff/Auditors viewing global booking data
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
+                // Internal staff, auditors, and compliance officers viewing preservation logs
+                // Note: Tourists do not need access to internal maintenance records
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/preservation/**").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
                 
-                // Specific booking ID lookups
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/*").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE, TOURIST)
+                // Only Administrators can delete a preservation log
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/preservation/*").hasRole(ADMIN)
 
+                // Fallback: Any other request must be authenticated
                 .anyRequest().authenticated()
             )
             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tourismgov.user.dto.AuditLogRequest;
 import com.tourismgov.user.dto.AuditLogResponse;
 import com.tourismgov.user.entity.AuditLog;
 import com.tourismgov.user.repository.AuditLogRepository;
@@ -22,6 +23,24 @@ import lombok.extern.slf4j.Slf4j;
 public class AuditLogServiceImpl implements AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
+    
+    
+    @Override
+    @Transactional
+    public void createLog(AuditLogRequest request) {
+        log.info("Saving audit log -> User ID: {}, Action: {}, Status: {}", 
+                 request.getUserId(), request.getAction(), request.getStatus());
+
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUserId(request.getUserId());
+        auditLog.setAction(request.getAction());
+        auditLog.setResource(request.getResource());
+        auditLog.setStatus(request.getStatus()); 
+        
+        // NO NEED to set timestamp here! @CreationTimestamp handles it.
+
+        auditLogRepository.save(auditLog);
+    }
 
     /**
      * Security / system audits – must survive rollback

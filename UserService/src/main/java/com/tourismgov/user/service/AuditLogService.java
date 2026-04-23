@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.tourismgov.user.dto.AuditLogRequest;
 import com.tourismgov.user.dto.AuditLogResponse;
 
 public interface AuditLogService {
@@ -25,4 +26,6 @@ public interface AuditLogService {
             Pageable pageable);
 
     Page<AuditLogResponse> getLogsByAction(String action, Pageable pageable);
+
+	void createLog(AuditLogRequest request);
 }

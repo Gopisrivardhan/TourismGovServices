@@ -10,12 +10,12 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
-public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
+public class AuthenticationGatewayFilterFactory extends AbstractGatewayFilterFactory<AuthenticationGatewayFilterFactory.Config> {
 
     private final RouteValidator validator;
     private final JwtUtil jwtUtil;
 
-    public AuthenticationFilter(RouteValidator validator, JwtUtil jwtUtil) {
+    public AuthenticationGatewayFilterFactory(RouteValidator validator, JwtUtil jwtUtil) {
         super(Config.class);
         this.validator = validator;
         this.jwtUtil = jwtUtil;
@@ -64,6 +64,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
         exchange.getResponse().setStatusCode(httpStatus);
+        // Note: You might want to actually log the 'err' message here so you can see it in your console
         return exchange.getResponse().setComplete();
     }
 
