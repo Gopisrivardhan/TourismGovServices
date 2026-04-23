@@ -23,7 +23,7 @@ public class RouteValidator {
 
         if (path.contains("/tourismgov/v1/events") && HttpMethod.GET.equals(method)) {
             if (!path.contains("/bookings")) {
-                return false; 
+                return false; // Not secured
             }
         }
 
