@@ -15,4 +15,6 @@ public class PreservationActivityRequest {
     private LocalDateTime date;
 
     private String status;
+
+	private boolean isRequiresSiteClosure;
 }

@@ -6,11 +6,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import com.tourismgov.tourist.dto.UserDTO;
 
-@FeignClient(name = "USERSERVICE")
+// Ensure this matches the spring.application.name of your user service exactly (usually "USER-SERVICE")
+@FeignClient(name = "USER-SERVICE")
 public interface UserClient {
 
-    // IMPORTANT: Remove '/register' and use exactly what is in your UserController
-    // Based on logs, the path should likely be:
-    @PostMapping("/tourismgov/user/register") 
+    // Matches the @RequestMapping("/tourismgov/user/users") + @PostMapping in your UserController
+    @PostMapping("/tourismgov/v1/auth/register") 
     UserDTO registerUser(@RequestBody UserDTO userDto);
+    
 }

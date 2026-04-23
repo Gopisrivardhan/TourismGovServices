@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor 
-public class PreservationActivity extends BaseEntity {
+public class PreservationActivity{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

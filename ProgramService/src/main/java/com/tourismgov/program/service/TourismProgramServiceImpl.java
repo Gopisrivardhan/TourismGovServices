@@ -1,27 +1,27 @@
 package com.tourismgov.program.service;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.tourismgov.program.client.EventClient;
 import com.tourismgov.program.client.NotificationClient;
 import com.tourismgov.program.client.UserClient;
 import com.tourismgov.program.dto.AuditLogRequest;
 import com.tourismgov.program.dto.ProgramRequest;
 import com.tourismgov.program.dto.ProgramResponse;
+import com.tourismgov.program.dto.ResourceResponse;
+import com.tourismgov.program.entity.Resource;
+import com.tourismgov.program.entity.TourismProgram;
 import com.tourismgov.program.enums.ProgramStatus;
 import com.tourismgov.program.enums.ResourceStatus;
 import com.tourismgov.program.enums.ResourceType;
 import com.tourismgov.program.exceptions.ResourceNotFoundException;
-import com.tourismgov.program.entity.Resource;
-import com.tourismgov.program.entity.TourismProgram;
 import com.tourismgov.program.repository.ResourceRepository;
 import com.tourismgov.program.repository.TourismProgramRepository;
 import com.tourismgov.program.security.SecurityUtils;
@@ -40,29 +40,18 @@ public class TourismProgramServiceImpl implements TourismProgramService {
     private static final String STATUS_FAILED = "FAILED";
     private static final String MODULE_NAME = "ProgramModule";
 
-    // Local Repositories
     private final TourismProgramRepository programRepository;
     private final ResourceRepository resourceRepository;
 
-    // Microservice Feign Clients
     private final UserClient userClient; 
     private final NotificationClient notificationClient;
-    private final EventClient eventClient;
 
     @Override
     @Transactional
     public ProgramResponse createProgram(ProgramRequest request) {
         log.info("Creating Tourism Program: {}", request.getTitle());
         Long currentUserId = SecurityUtils.getCurrentUserId();
-
-        // ✅ NEW: Duplicate Check
-        if (programRepository.existsByTitle(request.getTitle())) {
-            log.warn("Duplicate program creation attempt blocked for title: {}", request.getTitle());
-            logAuditSafe(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
-            throw new IllegalStateException("A program with this title already exists.");
-        }
         
-        // 1. Strict Date Validation
         try {
             validateProgramDates(request.getStartDate(), request.getEndDate(), true);
         } catch (IllegalArgumentException e) {
@@ -72,15 +61,12 @@ public class TourismProgramServiceImpl implements TourismProgramService {
 
         TourismProgram program = new TourismProgram();
         mapRequestToEntity(request, program);
-        
         program.setStatus(ProgramStatus.PLANNED);
 
         TourismProgram saved = programRepository.save(program);
         
-        // 2. Cross-Service Audit Logging
         logAuditSafe(currentUserId, "CREATE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
 
-        // 3. Cross-Service Notification Alert
         try {
             String message = String.format("Tourism program '%s' has been officially initiated.", saved.getTitle());
             notificationClient.sendSystemAlert(
@@ -96,6 +82,7 @@ public class TourismProgramServiceImpl implements TourismProgramService {
 
         return mapToProgramResponse(saved);
     }
+
     @Override
     @Transactional
     public ProgramResponse updateProgramStatus(Long id, String statusString) {
@@ -130,7 +117,6 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         List<Resource> resources = resourceRepository.findByProgram_ProgramId(programId);
         double totalBudget = (program.getBudget() != null) ? program.getBudget() : 0.0;
         
-        // Professional Stream filtering using Enum equality
         double spentFunds = resources.stream()
                 .filter(r -> r.getType() == ResourceType.FUNDS && r.getStatus() == ResourceStatus.ALLOCATED)
                 .mapToDouble(r -> (r.getQuantity() != null) ? r.getQuantity() : 0.0)
@@ -146,8 +132,6 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         return report;
     }
 
-    // --- STANDARD CRUD ---
-
     @Override 
     @Transactional
     public ProgramResponse updateProgram(Long programId, ProgramRequest request) {
@@ -159,7 +143,6 @@ public class TourismProgramServiceImpl implements TourismProgramService {
                 });
 
         try {
-            // Validate dates (isNew = false means it can keep its original past start date if it's already active)
             validateProgramDates(request.getStartDate(), request.getEndDate(), false);
         } catch (IllegalArgumentException e) {
             logAuditSafe(currentUserId, "UPDATE_PROGRAM", MODULE_NAME, STATUS_FAILED);
@@ -176,27 +159,37 @@ public class TourismProgramServiceImpl implements TourismProgramService {
     @Override 
     @Transactional
     public void deleteProgram(Long programId) {
-        log.info("Soft-deleting (cancelling) Program ID: {}", programId);
+        log.info("Cancelling Program ID: {} and its associated resources", programId);
         Long currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 1. Fetch the Program
         TourismProgram program = programRepository.findById(programId)
                 .orElseThrow(() -> {
                     logAuditSafe(currentUserId, "DELETE_PROGRAM", MODULE_NAME, STATUS_FAILED);
                     return new ResourceNotFoundException(ENTITY_NAME, programId);
                 });
         
-        // 1. Change local status to CANCELLED instead of deleting the row
-        program.setStatus(ProgramStatus.CANCELLED);
-        programRepository.save(program);
+        // 2. Fetch all Resources linked to this Program
+        List<Resource> resources = resourceRepository.findByProgram_ProgramId(programId);
 
-        // 2. Notify Event Service to cancel all linked events
-        try {
-            eventClient.cancelEventsByProgram(programId);
-        } catch (Exception e) {
-            log.error("Failed to cancel linked events in Event Service: {}", e.getMessage());
-            // We don't throw an exception here because the Program is already cancelled locally
+        // 3. Update Resource Statuses (Skip if already RELEASED)
+        boolean resourcesUpdated = false;
+        for (Resource resource : resources) {
+            if (resource.getStatus() != ResourceStatus.RELEASED) {
+                resource.setStatus(ResourceStatus.CANCELLED);
+                resourcesUpdated = true;
+            }
         }
         
+        // 4. Save resources if any were changed
+        if (resourcesUpdated) {
+            resourceRepository.saveAll(resources);
+            log.info("Successfully cancelled eligible resources for Program ID: {}", programId);
+        }
+
+        // 5. Soft-delete the Program
+        program.setStatus(ProgramStatus.CANCELLED);
+        programRepository.save(program);
         logAuditSafe(currentUserId, "DELETE_PROGRAM", MODULE_NAME, STATUS_SUCCESS);
     }
 
@@ -222,17 +215,12 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         if (start == null || end == null) {
             throw new IllegalArgumentException("Start and end dates are strictly required.");
         }
-        
         LocalDate today = LocalDate.now();
-        
-        // 1. A brand new program cannot be scheduled to start in the past
         if (isNew && start.isBefore(today)) {
-            throw new IllegalArgumentException("A new program must start today or in the future. Start date cannot be in the past.");
+            throw new IllegalArgumentException("Start date cannot be in the past.");
         }
-        
-        // 2. The end date must be strictly after the start date
         if (!end.isAfter(start)) {
-            throw new IllegalArgumentException("End date (" + end + ") must be strictly after the start date (" + start + ").");
+            throw new IllegalArgumentException("End date must be strictly after the start date.");
         }
     }
 
@@ -244,6 +232,7 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         entity.setBudget(request.getBudget());
     }
 
+    // ✅ UPDATED: Now fetches resources and attaches them to the response
     private ProgramResponse mapToProgramResponse(TourismProgram program) {
         ProgramResponse res = new ProgramResponse();
         res.setProgramId(program.getProgramId());
@@ -252,14 +241,33 @@ public class TourismProgramServiceImpl implements TourismProgramService {
         res.setStartDate(program.getStartDate());
         res.setEndDate(program.getEndDate());
         res.setBudget(program.getBudget());
-        
-        // Safely map the enum back to a String for the DTO
         res.setStatus(program.getStatus() != null ? program.getStatus().name() : null);
+        
+        // Fetch resources for this program and map them
+        List<Resource> resources = resourceRepository.findByProgram_ProgramId(program.getProgramId());
+        List<ResourceResponse> resourceResponses = resources.stream()
+                .map(this::mapToResourceResponse)
+                .toList();
+        
+        // Attach resources to the response
+        res.setResources(resourceResponses);
         
         return res;
     }
 
-    // --- Private Fault-Tolerant Audit Log Method ---
+    // ✅ NEW: Helper method to map individual Resources
+    private ResourceResponse mapToResourceResponse(Resource resource) {
+        ResourceResponse res = new ResourceResponse();
+        res.setResourceId(resource.getResourceId());
+        if (resource.getProgram() != null) {
+            res.setProgramId(resource.getProgram().getProgramId());
+        }
+        res.setType(resource.getType());
+        res.setQuantity(resource.getQuantity());
+        res.setStatus(resource.getStatus());
+        return res;
+    }
+
     private void logAuditSafe(Long userId, String action, String resource, String status) {
         try {
             AuditLogRequest auditRequest = new AuditLogRequest();
@@ -267,7 +275,6 @@ public class TourismProgramServiceImpl implements TourismProgramService {
             auditRequest.setAction(action);
             auditRequest.setResource(resource);
             auditRequest.setStatus(status);
-            
             userClient.logAction(auditRequest);
         } catch (Exception e) {
             log.error("Failed to push audit log to USER-SERVICE: {}", e.getMessage());

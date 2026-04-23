@@ -1,29 +1,35 @@
 package com.tourismgov.tourist.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data
 public class UserDTO {
 
     private Long userId;
-    
+
+    @NotBlank
+    @Size(max = 100)
     private String name;
-    
+
+    @NotNull
+    private String role;
+
+    @NotBlank
+    @Email
     private String email;
-    
-    private String phone;
-    
-    private String role; // e.g., "TOURIST", "ADMIN", "OFFICER"
-    
-    private String status;
-    
+
+    @NotBlank
+    @Size(min = 8)
     private String password;
+
+    @Size(max = 20)
+    private String phone;
+
+    // ✅ ADDED: Needed so the Mapper can set "ACTIVE"
+    private String status;
+
 }

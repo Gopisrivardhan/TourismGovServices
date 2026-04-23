@@ -6,11 +6,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tourismgov.site.client.UserClient;
+import com.tourismgov.site.dto.AuditLogRequest;
 import com.tourismgov.site.dto.PreservationActivityRequest;
 import com.tourismgov.site.dto.PreservationActivityResponse;
 import com.tourismgov.site.entity.HeritageSite;
 import com.tourismgov.site.entity.PreservationActivity;
 import com.tourismgov.site.enums.PreservationStatus;
+import com.tourismgov.site.enums.SiteStatus; // ✅ ADDED IMPORT
 import com.tourismgov.site.exceptions.ResourceNotFoundException;
 import com.tourismgov.site.repository.HeritageSiteRepository;
 import com.tourismgov.site.repository.PreservationActivityRepository;
@@ -39,19 +41,30 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
     // --- Dependencies ---
     private final PreservationActivityRepository activityRepository;
     private final HeritageSiteRepository siteRepository;
-    
-    // MICROSERVICE FIX: OpenFeign Client replaces UserRepository and AuditLogService
     private final UserClient userClient;
 
     @Override
     @Transactional
     public PreservationActivityResponse logActivity(Long siteId, PreservationActivityRequest request) {
         log.info("Logging preservation activity for Site ID: {}", siteId);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         
         HeritageSite site = siteRepository.findById(siteId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_SITE, siteId));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, ACTION_LOG, MODULE_NAME, "FAILED_NOT_FOUND");
+                    return new ResourceNotFoundException(ENTITY_SITE, siteId);
+                });
 
-        Long currentUserId = SecurityUtils.getCurrentUserId();
+        // ✅ NEW: Prevent logging activities for permanently closed sites
+        if (SiteStatus.PERMANENTLY_CLOSED.name().equals(site.getStatus())) {
+            log.warn("Activity logging rejected: Site ID {} is permanently closed.", siteId);
+            
+            // Log the failed attempt so administrators can see someone tried to do this
+            logAuditSafe(currentUserId, ACTION_LOG, MODULE_NAME, "FAILED_SITE_CLOSED");
+            
+            // Throw a 400 Bad Request to the frontend
+            throw new IllegalStateException("Cannot log preservation activities for a permanently closed heritage site.");
+        }
 
         PreservationActivity activity = new PreservationActivity();
         activity.setSite(site);
@@ -74,12 +87,19 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
 
         PreservationActivity saved = activityRepository.save(activity);
         
-        // Cross-service audit logging
-        userClient.logAction(currentUserId, ACTION_LOG, MODULE_NAME, STATUS_SUCCESS);
+        // Automatic Site Closure Logic
+        // If the officer flags that the site needs closure AND the activity is in progress
+        if (request.isRequiresSiteClosure() && PreservationStatus.IN_PROGRESS.name().equals(saved.getStatus())) {
+            site.setStatus(SiteStatus.CLOSED_FOR_MAINTENANCE.name());
+            siteRepository.save(site);
+            log.info("Automatically updated Heritage Site ID {} to CLOSED_FOR_MAINTENANCE", siteId);
+        }
+        
+        // Cross-service audit logging using the helper method
+        logAuditSafe(currentUserId, ACTION_LOG, MODULE_NAME, STATUS_SUCCESS);
 
         return mapToActivityResponse(saved);
     }
-
     @Override
     @Transactional
     public PreservationActivityResponse updateActivityStatus(Long activityId, String status) {
@@ -92,7 +112,8 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
         
         PreservationActivity updated = activityRepository.save(activity);
         
-        userClient.logAction(SecurityUtils.getCurrentUserId(), ACTION_UPDATE, MODULE_NAME, STATUS_SUCCESS);
+        // Cross-service audit logging using the helper method
+        logAuditSafe(SecurityUtils.getCurrentUserId(), ACTION_UPDATE, MODULE_NAME, STATUS_SUCCESS);
         
         return mapToActivityResponse(updated);
     }
@@ -126,11 +147,35 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
     @Override
     @Transactional
     public void deleteActivity(Long activityId) {
-        if (!activityRepository.existsById(activityId)) {
-            throw new ResourceNotFoundException(ENTITY_ACTIVITY, activityId);
+        log.info("Soft deleting (cancelling) Preservation Activity ID: {}", activityId);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
+        // 1. Fetch the activity
+        PreservationActivity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, ACTION_DELETE, MODULE_NAME, "FAILED_NOT_FOUND");
+                    return new ResourceNotFoundException(ENTITY_ACTIVITY, activityId);
+                });
+
+        // ✅ NEW: Idempotency Check - If it's already cancelled, do nothing and exit early!
+        if (PreservationStatus.CANCELLED.name().equals(activity.getStatus())) {
+            log.warn("Preservation Activity ID {} is already cancelled. No action taken.", activityId);
+            return; 
         }
-        activityRepository.deleteById(activityId);
-        userClient.logAction(SecurityUtils.getCurrentUserId(), ACTION_DELETE, MODULE_NAME, STATUS_SUCCESS);
+
+        // 2. Prevent deleting an already completed activity
+        if (PreservationStatus.COMPLETED.name().equals(activity.getStatus())) {
+            log.warn("Cannot cancel a completed preservation activity. ID: {}", activityId);
+            logAuditSafe(currentUserId, ACTION_DELETE, MODULE_NAME, "FAILED_ALREADY_COMPLETED");
+            throw new IllegalStateException("Completed preservation activities cannot be deleted.");
+        }
+
+        // 3. Perform the Soft Delete (Change status to CANCELLED)
+        activity.setStatus(PreservationStatus.CANCELLED.name());
+        activityRepository.save(activity);
+        
+        // 4. Audit Log (User Service)
+        logAuditSafe(currentUserId, ACTION_DELETE, MODULE_NAME, STATUS_SUCCESS);
     }
 
     /* --- PRIVATE UTILITY METHODS --- */
@@ -155,7 +200,6 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
         }
         
         res.setStatus(activity.getStatus());
-        res.setCreatedAt(activity.getCreatedAt());
         
         if (activity.getSite() != null) {
             res.setSiteId(activity.getSite().getSiteId());
@@ -165,5 +209,20 @@ public class PreservationActivityServiceImpl implements PreservationActivityServ
         res.setOfficerId(activity.getOfficerId()); 
         
         return res;
+    }
+
+    // Private Fault-Tolerant Audit Log Method for the Feign Client
+    private void logAuditSafe(Long userId, String action, String resource, String status) {
+        try {
+            AuditLogRequest auditRequest = new AuditLogRequest();
+            auditRequest.setUserId(userId);
+            auditRequest.setAction(action);
+            auditRequest.setResource(resource);
+            auditRequest.setStatus(status);
+            
+            userClient.logAction(auditRequest);
+        } catch (Exception e) {
+            log.error("Failed to push audit log to USER-SERVICE: {}", e.getMessage());
+        }
     }
 }

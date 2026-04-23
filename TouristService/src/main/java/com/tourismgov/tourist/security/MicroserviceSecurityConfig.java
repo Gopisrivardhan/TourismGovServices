@@ -21,45 +21,44 @@ public class MicroserviceSecurityConfig {
     private static final String OFFICER = "OFFICER";
     private static final String MANAGER = "MANAGER";
     private static final String AUDITOR = "AUDITOR";
-    private static final String COMPLIANCE = "COMPLIANCE";
     private static final String TOURIST = "TOURIST";
 
     private final GatewayHeaderFilter gatewayHeaderFilter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 
                 // ==========================================
-                // 1. EVENT ENDPOINTS (/tourismgov/v1/events)
+                // 1. TOURIST PROFILE ENDPOINTS (/tourismgov/v1/tourist)
                 // ==========================================
-                // Anyone can view events and paged events
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/**").permitAll()
-                
-                // Only staff can create, update, or delete events
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/events/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/events/*/status").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/events/*").hasRole(ADMIN)
+                // Public Access: Allow anyone to create a new tourist profile
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/tourist/create").permitAll()
+
+                // Tourist/Admin Access: A tourist can view/update their own profile, Admins can manage them
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/tourist/*").hasAnyRole(TOURIST, ADMIN, OFFICER, MANAGER)
+                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/tourist/*/update").hasAnyRole(TOURIST, ADMIN, MANAGER)
+
+                // Administrative: Only Admins can view the full list of profiles or delete a tourist
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/tourist/admin").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR)
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/tourist/*").hasRole(ADMIN)
 
                 // ==========================================
-                // 2. BOOKING ENDPOINTS (/tourismgov/v1)
+                // 2. TOURIST DOCUMENT ENDPOINTS (/tourismgov/v1/touristdoc)
                 // ==========================================
-                // Tourists (and staff) making and managing their own bookings
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events/*/bookings").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/bookings/*/status").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/tourist/*").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                
-                // Staff/Auditors viewing global booking data
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                
-                // Specific booking ID lookups
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/*").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE, TOURIST)
+                // Tourist Access: Tourists can upload, view, or delete their own documents
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/touristdoc/*/documents").hasAnyRole(TOURIST, ADMIN)
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/touristdoc/*/documents/*/view").hasAnyRole(TOURIST, OFFICER, ADMIN, MANAGER)
+                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/touristdoc/*/documents/*").hasAnyRole(TOURIST, ADMIN)
 
+                // Verification: Only Officers, Managers, or Admins can verify documents
+                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/touristdoc/*/documents/*/verify").hasAnyRole(OFFICER, MANAGER, ADMIN)
+
+                // ==========================================
+                // 3. FALLBACK
+                // ==========================================
                 .anyRequest().authenticated()
             )
             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);

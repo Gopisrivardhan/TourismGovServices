@@ -25,6 +25,14 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
     private static final String ROLE_PREFIX = "ROLE_";
+    
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        
+        // Add any endpoints here that do not require Gateway Auth Headers
+        return path.contains("/tourismgov/v1/tourist/create");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

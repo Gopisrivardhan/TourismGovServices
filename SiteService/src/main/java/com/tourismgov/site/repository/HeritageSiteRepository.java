@@ -20,4 +20,6 @@ public interface HeritageSiteRepository extends JpaRepository<HeritageSite, Long
 
     // CHANGED: Uses SiteStatus Enum
     List<HeritageSite> findByStatus(SiteStatus status);
+    Optional<HeritageSite> findByNameIgnoreCase(String name);
+    
 }

@@ -13,7 +13,7 @@ public class RouteValidator {
     public static final List<String> openApiEndpoints = List.of(
             "/tourismgov/v1/auth/register",
             "/tourismgov/v1/auth/login",
-            "/tourismgov/v1/tourist/create", 
+            "/tourismgov/v1/tourist/create",
             "/eureka"
     );
 
