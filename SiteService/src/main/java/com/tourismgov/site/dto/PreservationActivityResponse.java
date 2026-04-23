@@ -11,5 +11,4 @@ public class PreservationActivityResponse {
     private String description;
     private LocalDateTime date;
     private String status;
-    private LocalDateTime createdAt;
 }

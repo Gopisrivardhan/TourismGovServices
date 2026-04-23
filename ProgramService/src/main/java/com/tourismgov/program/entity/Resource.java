@@ -30,7 +30,7 @@ public class Resource {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "resource_id")
     private Long resourceId;
-
+	
     @Enumerated(EnumType.STRING) // CRITICAL: Saves enum as text in DB
     @Column(name = "resource_type", nullable = false, length = 50)
     private ResourceType type;
@@ -38,6 +38,7 @@ public class Resource {
     @Column(nullable = false)
     private Double quantity; 
 
+    
     @Enumerated(EnumType.STRING) // CRITICAL: Saves enum as text in DB
     @Column(nullable = false, length = 50)
     private ResourceStatus status;

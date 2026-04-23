@@ -11,6 +11,7 @@ import com.tourismgov.program.dto.ResourceRequest;
 import com.tourismgov.program.dto.ResourceResponse;
 import com.tourismgov.program.entity.Resource;
 import com.tourismgov.program.entity.TourismProgram;
+import com.tourismgov.program.enums.ProgramStatus;
 import com.tourismgov.program.enums.ResourceStatus;
 import com.tourismgov.program.exceptions.ResourceNotFoundException;
 import com.tourismgov.program.repository.ResourceRepository;
@@ -44,23 +45,30 @@ public class ResourceServiceImpl implements ResourceService {
         log.info("Allocating {} resource to Program ID: {}", request.getType(), programId);
         Long currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 1. Fetch the Program
         TourismProgram program = programRepository.findById(programId)
                 .orElseThrow(() -> {
                     logAuditSafe(currentUserId, "ALLOCATE_RESOURCE", MODULE_NAME, STATUS_FAILED);
                     return new ResourceNotFoundException(ENTITY_PROGRAM, programId);
                 });
 
+        // ✅ NEW: Business Logic Validation - Prevent allocation to Cancelled or Completed programs
+        if (program.getStatus() == ProgramStatus.CANCELLED || program.getStatus() == ProgramStatus.COMPLETED) {
+            log.warn("Allocation rejected: Program ID {} is {}", programId, program.getStatus());
+            logAuditSafe(currentUserId, "ALLOCATE_RESOURCE", MODULE_NAME, STATUS_FAILED);
+            throw new IllegalStateException("Cannot allocate resources to a program that is " + program.getStatus());
+        }
+
+        // 2. Allocate the Resource
         Resource resource = new Resource();
         resource.setProgram(program);
         resource.setQuantity(request.getQuantity());
-        
-        // Professional Enum Usage: Direct assignment, no String conversions
         resource.setType(request.getType()); 
         resource.setStatus(ResourceStatus.ALLOCATED);
 
         Resource saved = resourceRepository.save(resource);
         
-        // Cross-Service Audit Log call
+        // 3. Cross-Service Audit Log call
         logAuditSafe(currentUserId, "ALLOCATE_RESOURCE", MODULE_NAME, STATUS_SUCCESS);
         
         return mapToResourceResponse(saved);

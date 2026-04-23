@@ -1,11 +1,11 @@
 package com.tourismgov.program.dto;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import java.time.LocalDate;
-import java.util.List;
 
 @Data
 public class ProgramRequest {
@@ -22,5 +22,4 @@ public class ProgramRequest {
     private LocalDate endDate;
 
     private Double budget;
-    private List<Long> heritageSiteIds;
 }

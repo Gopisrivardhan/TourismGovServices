@@ -6,7 +6,6 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
 
 @FeignClient(name = "EVENT-SERVICE")
 public interface EventClient {
@@ -22,7 +21,4 @@ public interface EventClient {
      */
     @DeleteMapping("/tourismgov/v1/events/program/{programId}/unlink")
     void unlinkProgramFromAllEvents(@PathVariable("programId") Long programId);
-    
-    @PutMapping("/tourismgov/v1/events/program/{programId}/cancel")
-    void cancelEventsByProgram(@PathVariable("programId") Long programId);
 }

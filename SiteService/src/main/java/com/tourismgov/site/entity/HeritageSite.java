@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class HeritageSite extends BaseEntity{
+public class HeritageSite{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
