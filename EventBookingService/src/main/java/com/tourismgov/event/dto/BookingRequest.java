@@ -1,5 +1,7 @@
 package com.tourismgov.event.dto;
 
+import com.tourismgov.event.enums.BookingStatus;
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -14,4 +16,6 @@ public class BookingRequest {
     
     @Min(value = 1, message = "You must book at least 1 ticket")
     private Integer numberOfTickets;
+    
+    private BookingStatus status;
 }

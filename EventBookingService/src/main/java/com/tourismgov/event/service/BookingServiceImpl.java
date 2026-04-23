@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tourismgov.event.client.NotificationClient;
 import com.tourismgov.event.client.TouristClient;
 import com.tourismgov.event.client.UserClient;
+import com.tourismgov.event.dto.AuditLogRequest;
 import com.tourismgov.event.dto.BookingRequest;
 import com.tourismgov.event.dto.BookingResponse;
 import com.tourismgov.event.dto.TouristDTO;
@@ -39,10 +40,11 @@ public class BookingServiceImpl implements BookingService {
     private static final String ENTITY_EVENT = "Event";
     private static final String ENTITY_TOURIST = "Tourist";
     
-    private static final String STATUS_SUCCESS = "SUCCESS";
-    private static final String STATUS_FAILED = "FAILED";
     private static final String ACTION_BOOKING_CREATE = "BOOKING_CREATE";
     private static final String ACTION_BOOKING_STATUS_UPDATE = "BOOKING_STATUS_UPDATE";
+    
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
 
     private final BookingRepository bookingRepository;
     private final EventRepository eventRepository;
@@ -55,6 +57,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingResponse createBooking(Long eventId, BookingRequest request) {
         log.info("Creating booking for Event ID: {} for Tourist ID: {}", eventId, request.getTouristId());
+        Long currentUserId = SecurityUtils.getCurrentUserId();
 
         // 1. Fetch Local Event
         Event event = eventRepository.findById(eventId)
@@ -69,29 +72,37 @@ public class BookingServiceImpl implements BookingService {
             throw new ResourceNotFoundException(ENTITY_TOURIST, request.getTouristId());
         }
 
-        // 3. Duplicate Check
+        // 3. Duplicate Booking Check
         if (bookingRepository.existsByEvent_EventIdAndTouristId(eventId, request.getTouristId())) {
+            log.warn("Duplicate booking attempt by Tourist ID: {} for Event ID: {}", request.getTouristId(), eventId);
+            logAuditSafe(currentUserId, ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_FAILED);
             throw new IllegalArgumentException(ErrorMessages.DUPLICATE_BOOKING);
         }
 
-        // 4. Status Check
+        // 4. Tourist Status Check
         if ("INACTIVE".equalsIgnoreCase(tourist.getStatus())) {
-            logAuditSafe(SecurityUtils.getCurrentUserId(), ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_FAILED);
+            logAuditSafe(currentUserId, ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_FAILED);
             throw new IllegalStateException(ErrorMessages.UNAUTHORIZED_ACTION + ": Tourist account is INACTIVE.");
         }
 
         // 5. Save Booking
         Booking booking = new Booking();
-        booking.setEvent(event); // Using the JPA Object!
-        booking.setTouristId(tourist.getTouristId()); // Using the Flat ID!
+        booking.setEvent(event); 
+        booking.setTouristId(tourist.getTouristId()); 
         booking.setNumberOfTickets(request.getNumberOfTickets() != null ? request.getNumberOfTickets() : 1);
         booking.setDate(LocalDateTime.now());
-        booking.setStatus(BookingStatus.CONFIRMED); 
+        
+        if (request.getStatus() != null) {
+            booking.setStatus(request.getStatus());
+        } else {
+            booking.setStatus(BookingStatus.CONFIRMED); 
+        }
 
         Booking savedBooking = bookingRepository.save(booking);
         
-        // 6. External Triggers
-        logAuditSafe(SecurityUtils.getCurrentUserId(), ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_SUCCESS);
+        // 6. External Triggers (Audit Log & Notification)
+        logAuditSafe(currentUserId, ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_SUCCESS);
+        
         String message = "Your booking for " + event.getTitle() + " is confirmed!";
         sendSystemAlertSafe(tourist.getUserId(), savedBooking.getBookingId(), "Booking Confirmed", message, "EVENT");
 
@@ -111,7 +122,9 @@ public class BookingServiceImpl implements BookingService {
         }
 
         Booking updatedBooking = bookingRepository.save(booking);
-        logAuditSafe(SecurityUtils.getCurrentUserId(), ACTION_BOOKING_STATUS_UPDATE, RESOURCE_BOOKING, STATUS_SUCCESS);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        
+        logAuditSafe(currentUserId, ACTION_BOOKING_STATUS_UPDATE, RESOURCE_BOOKING, STATUS_SUCCESS);
         
         if (!oldStatus.equals(updatedBooking.getStatus())) {
             String message = String.format("The status of your booking for %s has been updated to: %s.", 
@@ -157,7 +170,7 @@ public class BookingServiceImpl implements BookingService {
                 BookingStatus statusEnum = BookingStatus.valueOf(status.toUpperCase());
                 return bookingRepository.findByStatus(statusEnum, pageable).map(this::mapToResponse);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid Status Filter.");
+                throw new IllegalArgumentException(ErrorMessages.INVALID_STATUS);
             }
         }
         return bookingRepository.findAll(pageable).map(this::mapToResponse); 
@@ -176,7 +189,14 @@ public class BookingServiceImpl implements BookingService {
 
     private void logAuditSafe(Long userId, String action, String resource, String status) {
         try {
-            userClient.logAction(userId, action, resource, status);
+            // ✅ Safely instantiating using Setters. No timestamp needed!
+            AuditLogRequest auditRequest = new AuditLogRequest();
+            auditRequest.setUserId(userId);
+            auditRequest.setAction(action);
+            auditRequest.setResource(resource);
+            auditRequest.setStatus(status);
+            
+            userClient.logAction(auditRequest);
         } catch (Exception e) {
             log.error("Failed to push audit log to USER-SERVICE", e);
         }

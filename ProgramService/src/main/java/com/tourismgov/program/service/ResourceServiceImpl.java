@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tourismgov.program.client.UserClient;
+import com.tourismgov.program.dto.AuditLogRequest;
 import com.tourismgov.program.dto.ResourceRequest;
 import com.tourismgov.program.dto.ResourceResponse;
 import com.tourismgov.program.entity.Resource;
@@ -28,6 +29,7 @@ public class ResourceServiceImpl implements ResourceService {
     private static final String ENTITY_RESOURCE = "Program Resource";
     private static final String ENTITY_PROGRAM = "Tourism Program";
     private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
     private static final String MODULE_NAME = "ResourceModule";
 
     private final ResourceRepository resourceRepository;
@@ -40,9 +42,13 @@ public class ResourceServiceImpl implements ResourceService {
     @Transactional
     public ResourceResponse allocateResourceToProgram(Long programId, ResourceRequest request) {
         log.info("Allocating {} resource to Program ID: {}", request.getType(), programId);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
 
         TourismProgram program = programRepository.findById(programId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_PROGRAM, programId));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, "ALLOCATE_RESOURCE", MODULE_NAME, STATUS_FAILED);
+                    return new ResourceNotFoundException(ENTITY_PROGRAM, programId);
+                });
 
         Resource resource = new Resource();
         resource.setProgram(program);
@@ -55,12 +61,7 @@ public class ResourceServiceImpl implements ResourceService {
         Resource saved = resourceRepository.save(resource);
         
         // Cross-Service Audit Log call
-        userClient.logAction(
-            SecurityUtils.getCurrentUserId(), 
-            "ALLOCATE_RESOURCE", 
-            MODULE_NAME, 
-            STATUS_SUCCESS
-        );
+        logAuditSafe(currentUserId, "ALLOCATE_RESOURCE", MODULE_NAME, STATUS_SUCCESS);
         
         return mapToResourceResponse(saved);
     }
@@ -69,20 +70,19 @@ public class ResourceServiceImpl implements ResourceService {
     @Transactional
     public ResourceResponse updateResourceStatus(Long resourceId, ResourceStatus newStatus) {
         log.info("Updating Resource ID: {} status to {}", resourceId, newStatus);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         
         Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new ResourceNotFoundException(ENTITY_RESOURCE, resourceId));
+                .orElseThrow(() -> {
+                    logAuditSafe(currentUserId, "UPDATE_RESOURCE_STATUS", MODULE_NAME, STATUS_FAILED);
+                    return new ResourceNotFoundException(ENTITY_RESOURCE, resourceId);
+                });
         
         // Direct Enum assignment
         resource.setStatus(newStatus);
         Resource updated = resourceRepository.save(resource);
 
-        userClient.logAction(
-            SecurityUtils.getCurrentUserId(), 
-            "UPDATE_RESOURCE_STATUS", 
-            MODULE_NAME, 
-            STATUS_SUCCESS
-        );
+        logAuditSafe(currentUserId, "UPDATE_RESOURCE_STATUS", MODULE_NAME, STATUS_SUCCESS);
         
         return mapToResourceResponse(updated);
     }
@@ -100,17 +100,34 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     @Transactional
     public void deleteResource(Long resourceId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        
         if (!resourceRepository.existsById(resourceId)) {
+            logAuditSafe(currentUserId, "DELETE_RESOURCE", MODULE_NAME, STATUS_FAILED);
             throw new ResourceNotFoundException(ENTITY_RESOURCE, resourceId);
         }
+        
         resourceRepository.deleteById(resourceId);
         
-        userClient.logAction(
-            SecurityUtils.getCurrentUserId(), 
-            "DELETE_RESOURCE", 
-            MODULE_NAME, 
-            STATUS_SUCCESS
-        );
+        logAuditSafe(currentUserId, "DELETE_RESOURCE", MODULE_NAME, STATUS_SUCCESS);
+    }
+
+    // --- Private Fault-Tolerant Audit Log Method ---
+    private void logAuditSafe(Long userId, String action, String resource, String status) {
+        try {
+            // Instantiate the DTO and set the 4 required fields safely
+            AuditLogRequest auditRequest = new AuditLogRequest();
+            auditRequest.setUserId(userId);
+            auditRequest.setAction(action);
+            auditRequest.setResource(resource);
+            auditRequest.setStatus(status);
+            
+            // Push to the USER-SERVICE
+            userClient.logAction(auditRequest);
+            
+        } catch (Exception e) {
+            log.error("Failed to push audit log to USER-SERVICE: {}", e.getMessage());
+        }
     }
 
     private ResourceResponse mapToResourceResponse(Resource resource) {

@@ -74,6 +74,13 @@ public class EventController {
         
         return ResponseEntity.ok(eventService.getEventsBySite(siteId));
     }
+    
+    @PutMapping("/program/{programId}/cancel")
+    public ResponseEntity<Void> cancelEventsByProgram(@PathVariable Long programId) {
+        eventService.cancelEventsByProgram(programId);
+        return ResponseEntity.noContent().build();
+    }
+    
 
     @GetMapping("/program/{programId}")
     public ResponseEntity<List<EventResponse>> getEventsByProgram(

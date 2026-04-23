@@ -20,4 +20,5 @@ public interface TourismProgramRepository extends JpaRepository<TourismProgram, 
     List<TourismProgram> findByStatus(ProgramStatus status);
 
     List<TourismProgram> findByStartDateBeforeAndEndDateAfter(LocalDate date1, LocalDate date2);
+    boolean existsByTitle(String title);
 }

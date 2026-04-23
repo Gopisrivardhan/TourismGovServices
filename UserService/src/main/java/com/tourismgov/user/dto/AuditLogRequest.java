@@ -21,4 +21,9 @@ public class AuditLogRequest {
     @NotBlank
     @Size(max = 20)
     private String status;
+
+	public Object getTimestamp() {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }
