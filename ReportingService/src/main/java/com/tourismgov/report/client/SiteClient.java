@@ -7,7 +7,7 @@ import com.tourismgov.report.dto.SiteDTO;
 
 import java.util.List;
 
-@FeignClient(name = "tourismgov-app")
+@FeignClient(name = "SITE-SERVICE")
 public interface SiteClient {
     @GetMapping("/tourismgov/v1/sites")
     List<SiteDTO> getAllSites();

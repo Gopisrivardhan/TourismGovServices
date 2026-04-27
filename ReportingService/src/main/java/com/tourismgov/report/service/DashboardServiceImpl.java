@@ -34,10 +34,22 @@ public class DashboardServiceImpl implements DashboardService {
             throw new RuntimeException("User not found with ID: " + userId);
         }
 
-        String dbRole = user.getRole().name().toUpperCase();
-        if (!dbRole.equals(role.toUpperCase())) {
+        // ========================================================
+        // ✅ CORRECTED BUG: Robust Role Sanitization and Validation
+        // ========================================================
+        // 1. Safely get the DB role and clean it
+        String rawDbRole = String.valueOf(user.getRole());
+        String dbRole = rawDbRole.replace("ROLE_", "").trim().toUpperCase();
+        
+        // 2. Clean the Header role (removes [ ], spaces, and ROLE_ prefix)
+        String headerRole = role != null ? role.replace("ROLE_", "").replace("[", "").replace("]", "").trim().toUpperCase() : "";
+
+        // 3. Use contains() instead of strict equals() to prevent Gateway mismatch errors
+        if (!headerRole.contains(dbRole)) {
+            log.error("Role Validation Failed - Header: '{}' vs DB: '{}'", headerRole, dbRole);
             throw new IllegalArgumentException("Access Denied: Role mismatch");
         }
+        // ========================================================
 
         // Step 2: Parallel Data Fetching (The Aggregator Pattern)
         // We fetch everything concurrently to reduce load time from seconds to milliseconds
@@ -71,6 +83,7 @@ public class DashboardServiceImpl implements DashboardService {
         metrics.put("activeEvents", allEvents.stream().filter(e -> "ACTIVE".equalsIgnoreCase(e.getStatus())).count());
 
         // Step 4: Role-Specific Logic
+        // The switch statement will now work perfectly because dbRole is safely sanitized!
         switch (dbRole) {
             case "TOURIST":
                 List<BookingDTO> myBookings = allBookings.stream()
@@ -90,7 +103,7 @@ public class DashboardServiceImpl implements DashboardService {
                 double totalBudget = allPrograms.stream().mapToDouble(p -> p.getBudget() != null ? p.getBudget() : 0.0).sum();
                 
                 metrics.put("totalUsers", handleFetch(userClient::getAllUsers, "Users").size());
-                metrics.put("totalEvents", allEvents.size()); // FIXED BUG: Previously used totalS
+                metrics.put("totalEvents", allEvents.size()); 
                 metrics.put("totalBookings", allBookings.size());
                 metrics.put("totalBudget", "₹" + totalBudget);
                 metrics.put("activePrograms", allPrograms.stream().filter(p -> "ACTIVE".equalsIgnoreCase(p.getStatus())).count());

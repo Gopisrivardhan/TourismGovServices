@@ -6,4 +6,5 @@ import com.tourismgov.user.dto.UserResponse;
 
 public interface UserService {
     List<UserResponse> fetchAllUsers();
+    UserResponse getUserById(Long id);
 }

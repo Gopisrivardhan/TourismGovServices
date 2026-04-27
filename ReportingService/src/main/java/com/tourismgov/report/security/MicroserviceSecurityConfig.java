@@ -22,7 +22,7 @@ public class MicroserviceSecurityConfig {
     private static final String MANAGER = "MANAGER";
     private static final String AUDITOR = "AUDITOR";
     private static final String COMPLIANCE = "COMPLIANCE";
-    private static final String TOURIST = "TOURIST";
+    // Tourists are intentionally omitted below to block them from viewing reports
 
     private final GatewayHeaderFilter gatewayHeaderFilter;
 
@@ -32,33 +32,17 @@ public class MicroserviceSecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 
-                // ==========================================
-                // 1. EVENT ENDPOINTS (/tourismgov/v1/events)
-                // ==========================================
-                // Anyone can view events and paged events
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/**").permitAll()
+                // 1. DASHBOARD ENDPOINTS
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/dashboard/stats")
+                    .hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
                 
-                // Only staff can create, update, or delete events
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/events/*").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/events/*/status").hasAnyRole(ADMIN, MANAGER, OFFICER)
-                .requestMatchers(HttpMethod.DELETE, "/tourismgov/v1/events/*").hasRole(ADMIN)
-
-                // ==========================================
-                // 2. BOOKING ENDPOINTS (/tourismgov/v1)
-                // ==========================================
-                // Tourists (and staff) making and managing their own bookings
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/events/*/bookings").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.PATCH, "/tourismgov/v1/bookings/*/status").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/tourist/*").hasAnyRole(TOURIST, OFFICER, ADMIN)
-                
-                // Staff/Auditors viewing global booking data
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/events/*/bookings").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/paged").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
-                
-                // Specific booking ID lookups
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/bookings/*").hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE, TOURIST)
+                // 2. REPORT ENDPOINTS
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/reports/generate")
+                    .hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/reports/history")
+                    .hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/reports/download/*")
+                    .hasAnyRole(ADMIN, MANAGER, OFFICER, AUDITOR, COMPLIANCE)
 
                 .anyRequest().authenticated()
             )

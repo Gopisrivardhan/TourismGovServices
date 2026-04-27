@@ -79,10 +79,16 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalArgumentException(ErrorMessages.DUPLICATE_BOOKING);
         }
 
-        // 4. Tourist Status Check
-        if ("INACTIVE".equalsIgnoreCase(tourist.getStatus())) {
+        // ================================================================
+        // 4. Tourist Status Check (UPDATED LOGIC)
+        // Block the booking if the tourist is anything OTHER than "ACTIVE"
+        // ================================================================
+        if (!"ACTIVE".equalsIgnoreCase(tourist.getStatus())) {
+            log.warn("Booking denied: Tourist ID {} is not active. Current status: {}", tourist.getTouristId(), tourist.getStatus());
             logAuditSafe(currentUserId, ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_FAILED);
-            throw new IllegalStateException(ErrorMessages.UNAUTHORIZED_ACTION + ": Tourist account is INACTIVE.");
+            
+            // Throwing a clear message prompting them to verify their profile
+            throw new IllegalStateException("Please verify your profile first. Only active tourists can book events.");
         }
 
         // 5. Save Booking
@@ -103,8 +109,9 @@ public class BookingServiceImpl implements BookingService {
         // 6. External Triggers (Audit Log & Notification)
         logAuditSafe(currentUserId, ACTION_BOOKING_CREATE, RESOURCE_BOOKING, STATUS_SUCCESS);
         
-        String message = "Your booking for " + event.getTitle() + " is confirmed!";
-        sendSystemAlertSafe(tourist.getUserId(), savedBooking.getBookingId(), "Booking Confirmed", message, "EVENT");
+        // Perfectly formatted notification message using the event details
+        String message = "Your trip to " + event.getTitle() + " has been confirmed for " + event.getDate() + ". Have a safe journey!";
+        sendSystemAlertSafe(tourist.getUserId(), savedBooking.getBookingId(), "Booking Confirmed!", message, "BOOKING");
 
         return mapToResponse(savedBooking);
     }
@@ -189,7 +196,6 @@ public class BookingServiceImpl implements BookingService {
 
     private void logAuditSafe(Long userId, String action, String resource, String status) {
         try {
-            // ✅ Safely instantiating using Setters. No timestamp needed!
             AuditLogRequest auditRequest = new AuditLogRequest();
             auditRequest.setUserId(userId);
             auditRequest.setAction(action);

@@ -28,11 +28,10 @@ public class ReportController {
             @RequestHeader("X-User-Id") Long userId,
             @RequestBody @Valid ReportRequestDTO request) {
         
-        // SECURITY: Overwrite the requesterId with the verified header ID
-        request.setRequesterId(userId); 
         log.info("Generating {} report for User: {}", request.getScope(), userId);
         
-        ReportSummaryDTO response = reportService.generateReport(request);
+        // Pass the userId cleanly separated from the JSON request body
+        ReportSummaryDTO response = reportService.generateReport(userId, request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
@@ -48,8 +47,6 @@ public class ReportController {
 
     @GetMapping("/download/{id}")
     public ResponseEntity<byte[]> download(@PathVariable Long id) {
-        // We can't easily get the scope here without another DB call, 
-        // so we'll keep the filename simple or look up the report metadata.
         byte[] data = reportService.downloadReport(id);
         
         HttpHeaders headers = new HttpHeaders();

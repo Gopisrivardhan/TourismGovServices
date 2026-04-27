@@ -32,9 +32,9 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional
-    public ReportSummaryDTO generateReport(ReportRequestDTO request) {
-        // 1. Identity Verification (Blocking - Failure here is a Hard Stop)
-        UserDTO requester = fetchUserSafely(request.getRequesterId());
+    public ReportSummaryDTO generateReport(Long userId, ReportRequestDTO request) {
+        // 1. Identity Verification using ONLY the trusted header ID
+        UserDTO requester = fetchUserSafely(userId);
 
         if (requester.getRole() == com.tourismgov.report.enums.Role.TOURIST) {
             throw new ResponseStatusException(
@@ -102,7 +102,6 @@ public class ReportServiceImpl implements ReportService {
             return List.of();
         }
 
-        // Fetch user once - avoid network call if possible
         UserDTO user = null;
         try {
             user = userClient.getUserById(userId);

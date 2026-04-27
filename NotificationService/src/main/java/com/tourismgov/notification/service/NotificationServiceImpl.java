@@ -1,6 +1,5 @@
 package com.tourismgov.notification.service;
 
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,17 +33,16 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public NotificationResponseDTO create(NotificationRequestDTO request) {
-        // Logic Update: Catch Feign 404 and throw your specific "user is not exist" message
         UserDTO user;
         try {
             user = userClient.getUserById(request.getUserId());
         } catch (Exception e) {
-            throw new ResourceNotFoundException("user is not exist");
+            throw new ResourceNotFoundException("User does not exist with ID: " + request.getUserId());
         }
 
         Notification notification = Notification.builder()
                 .userId(user.getUserId())
-                .entityId(request.getEntityId())
+                .entityId(request.getEntityId() != null ? request.getEntityId() : 0L)
                 .subject(request.getSubject())
                 .message(request.getMessage())
                 .category(request.getCategory())
@@ -53,11 +51,8 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification saved = notificationRepository.saveAndFlush(notification);
 
-        try {
-            emailService.sendNotificationEmail(user.getEmail(), user.getName(), request.getSubject(), request.getMessage());
-        } catch (Exception e) {
-            log.error("EMAIL FAILED for user {}: {}", user.getEmail(), e.getMessage());
-        }
+        // Send email asynchronously
+        emailService.sendNotificationEmail(user.getEmail(), user.getName(), request.getSubject(), request.getMessage());
 
         return toDTO(saved, user.getName());
     }
@@ -65,12 +60,20 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public void sendGlobalNotification(NotificationRequestDTO request) {
-        UserDTO sender = userClient.getUserById(request.getUserId());
-        if ("TOURIST".equals(sender.getRole())) { 
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tourists cannot send broadcasts.");
+        // 1. Verify Sender Authorization
+        UserDTO sender;
+        try {
+            sender = userClient.getUserById(request.getUserId());
+            if ("TOURIST".equalsIgnoreCase(sender.getRole())) { 
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tourists cannot send broadcasts.");
+            }
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid broadcast sender.");
         }
 
+        // 2. Fetch all users and create batch
         List<UserDTO> allUsers = userClient.getAllUsers();
+        
         List<Notification> batch = allUsers.stream()
             .map(user -> Notification.builder()
                 .userId(user.getUserId())
@@ -82,8 +85,14 @@ public class NotificationServiceImpl implements NotificationService {
                 .build())
             .toList();
 
+        // 3. Save all to database in one quick query
         notificationRepository.saveAll(batch);
-        allUsers.forEach(user -> emailService.sendNotificationEmail(user.getEmail(), user.getName(), request.getSubject(), request.getMessage()));
+
+        // 4. Trigger async emails
+        log.info("Triggering global email broadcast to {} users", allUsers.size());
+        allUsers.forEach(user -> 
+            emailService.sendNotificationEmail(user.getEmail(), user.getName(), request.getSubject(), request.getMessage())
+        );
     }
 
     @Override
@@ -107,7 +116,7 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponseDTO markAsRead(Long notificationId, Long userId) {
         Notification notification = notificationRepository
                 .findByNotificationIdAndUserId(notificationId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification", notificationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found or access denied"));
 
         notification.setStatus(NotificationStatus.READ);
         return toDTO(notificationRepository.save(notification), null);
@@ -122,13 +131,12 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void verifyUserExists(Long userId) {
-        // Logic Update: Ensure 404s from User-Service return your specific string
         try {
             if (!userClient.existsById(userId)) {
-                throw new ResourceNotFoundException("user is not exist");
+                throw new ResourceNotFoundException("User does not exist");
             }
         } catch (Exception e) {
-            throw new ResourceNotFoundException("user is not exist");
+            throw new ResourceNotFoundException("User service unreachable");
         }
     }
 

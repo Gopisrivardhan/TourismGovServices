@@ -8,7 +8,7 @@ import com.tourismgov.report.dto.NotificationDTO;
 
 import java.util.List;
 
-@FeignClient(name = "notification-service")
+@FeignClient(name = "NOTIFICATION-SERVICE")
 public interface NotificationClient {
     @GetMapping("/notifications/unread")
     List<NotificationDTO> getUnreadNotifications(@RequestParam("userId") Long userId);

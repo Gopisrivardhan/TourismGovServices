@@ -7,7 +7,7 @@ import com.tourismgov.report.dto.ComplianceDTO;
 
 import java.util.List;
 
-@FeignClient(name = "tourismgov-app")
+@FeignClient(name = "COMPLIANCE-SERVICE")
 public interface ComplianceClient {
     @GetMapping("/tourismgov/v1/compliance")
     List<ComplianceDTO> getAllComplianceRecords();

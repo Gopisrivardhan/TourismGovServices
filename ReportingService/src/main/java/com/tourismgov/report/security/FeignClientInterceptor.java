@@ -1,4 +1,4 @@
-package com.tourismgov.event.client; 
+package com.tourismgov.report.security;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
@@ -12,33 +12,33 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Configuration
 public class FeignClientInterceptor implements RequestInterceptor {
 
-    private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
+    private static final String AUTHORIZATION_HEADER = "Authorization";
 
     @Override
-    public void apply(RequestTemplate requestTemplate) {
-        // 1. Get the current HTTP request context
+    public void apply(RequestTemplate template) {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         
         if (attributes != null) {
             HttpServletRequest request = attributes.getRequest();
             
-            // 2. Forward the Authorization header (Bearer token)
-            if (request.getHeader(AUTHORIZATION_HEADER) != null) {
-                requestTemplate.header(AUTHORIZATION_HEADER, request.getHeader(AUTHORIZATION_HEADER));
+            // 1. Forward the User ID
+            if (request.getHeader(HEADER_USER_ID) != null) {
+                template.header(HEADER_USER_ID, request.getHeader(HEADER_USER_ID));
+            }
+            
+            // 2. Forward the Roles
+            if (request.getHeader(HEADER_USER_ROLES) != null) {
+                template.header(HEADER_USER_ROLES, request.getHeader(HEADER_USER_ROLES));
             }
 
-            // 3. Forward your custom Gateway headers (CRITICAL FOR YOUR SECURITY FILTER)
-            if (request.getHeader(HEADER_USER_ID) != null) {
-                requestTemplate.header(HEADER_USER_ID, request.getHeader(HEADER_USER_ID));
+            // 3. Forward the raw Bearer token (if your system requires it)
+            if (request.getHeader(AUTHORIZATION_HEADER) != null) {
+                template.header(AUTHORIZATION_HEADER, request.getHeader(AUTHORIZATION_HEADER));
             }
             
-            if (request.getHeader(HEADER_USER_ROLES) != null) {
-                requestTemplate.header(HEADER_USER_ROLES, request.getHeader(HEADER_USER_ROLES));
-            }
-            
-            log.debug("Feign Interceptor successfully attached security headers to outgoing request");
+            log.debug("FeignInterceptor successfully attached security headers to the outgoing request");
         }
     }
 }

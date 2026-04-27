@@ -1,35 +1,20 @@
 package com.tourismgov.tourist.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserDTO {
-
-    private Long userId;
-
-    @NotBlank
-    @Size(max = 100)
+	private Long userId;
     private String name;
-
-    @NotNull
-    private String role;
-
-    @NotBlank
-    @Email
+    private String role;     // Enum mapping handles String -> Role automatically
     private String email;
-
-    @NotBlank
-    @Size(min = 8)
     private String password;
-
-    @Size(max = 20)
     private String phone;
-
-    // ✅ ADDED: Needed so the Mapper can set "ACTIVE"
-    private String status;
-
+    private String status;   // E.g., "ACTIVE" or "PENDING"
 }

@@ -14,7 +14,7 @@ public interface EventClient {
      * Fetches all unique Heritage Site IDs associated with a specific Program ID.
      */
     @GetMapping("/tourismgov/v1/events/program/{programId}/sites")
-    List<Long> getSiteIdsByProgram(@PathVariable("programId") Long programId);
+    List<Long> getSiteIdsByProgram(@PathVariable Long programId);
 
     /**
      * Safely unlinks a program from all associated events when the program is deleted.

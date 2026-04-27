@@ -3,7 +3,6 @@ package com.tourismgov.tourist.security;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -49,7 +48,7 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
                 List<SimpleGrantedAuthority> authorities = Arrays.stream(rolesStr.split(","))
                         .map(role -> new SimpleGrantedAuthority(
                                 role.startsWith(ROLE_PREFIX) ? role : ROLE_PREFIX + role.trim().toUpperCase()))
-                        .collect(Collectors.toList());
+                        .toList();
 
                 UsernamePasswordAuthenticationToken authentication = 
                         new UsernamePasswordAuthenticationToken(userId, null, authorities);
