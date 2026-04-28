@@ -10,6 +10,7 @@ import com.tourismgov.site.client.UserClient;
 import com.tourismgov.site.dto.AuditLogRequest; // ✅ ADDED IMPORT
 import com.tourismgov.site.dto.HeritageSiteRequest;
 import com.tourismgov.site.dto.HeritageSiteResponse;
+import com.tourismgov.site.dto.NotificationRequestDTO;
 import com.tourismgov.site.dto.PreservationActivityResponse;
 import com.tourismgov.site.entity.HeritageSite;
 import com.tourismgov.site.entity.PreservationActivity;
@@ -69,16 +70,17 @@ public class HeritageSiteServiceImpl implements HeritageSiteService {
         // 1. Audit Log (User Service)
         logAuditSafe(currentUserId, ACTION_SITE_CREATE, RESOURCE_SITE, STATUS_SUCCESS);
 
-        // 2. Notification (Notification Service)
+        // 2. Notification (Notification Service - Global Broadcast)
         try {
             String message = String.format("New heritage site added: %s at %s.", saved.getName(), saved.getLocation());
-            notificationClient.sendSystemAlert(
-                    currentUserId, 
-                    saved.getSiteId(), 
-                    "New Heritage Site Added!", 
-                    message, 
-                    "SYSTEM"
-            );
+            NotificationRequestDTO broadcastReq = NotificationRequestDTO.builder()
+                    .userId(currentUserId)
+                    .entityId(saved.getSiteId())
+                    .subject("New Heritage Site Added!")
+                    .message(message)
+                    .category("SYSTEM")
+                    .build();
+            notificationClient.sendGlobalBroadcast(broadcastReq);
         } catch (Exception e) {
             log.error("Notification failed for site creation: {}", e.getMessage());
         }

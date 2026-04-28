@@ -1,0 +1,339 @@
+{
+  "info": {
+    "name": "Tourism Gov - Complete API Collection",
+    "description": "All APIs use JWT Bearer token. Token is sent to the API Gateway (port 8383) which automatically extracts userId and role — you NEVER pass these manually.\n\nFlow: Client → Gateway:8383 → Microservice\n\nSetup: Run the 'Register + Login' folder first to get tokens.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",      "value": "http://localhost:8383" },
+    { "key": "tourist_token", "value": "" },
+    { "key": "admin_token",   "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "1. Auth - Register & Login",
+      "item": [
+        {
+          "name": "Register TOURIST",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Tourist\",\n  \"email\": \"tourist@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"9876543210\",\n  \"role\": \"TOURIST\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register ADMIN",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin User\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin@123!\",\n  \"phone\": \"9000000001\",\n  \"role\": \"ADMIN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as TOURIST → set tourist_token",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var res = pm.response.json();",
+                "if (res.token) { pm.collectionVariables.set('tourist_token', res.token); }",
+                "pm.test('Login successful', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"tourist@example.com\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as ADMIN → set admin_token",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var res = pm.response.json();",
+                "if (res.token) { pm.collectionVariables.set('admin_token', res.token); }",
+                "pm.test('Login successful', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin@123!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "2. Notifications (JWT auto-extracts userId & role)",
+      "description": "All endpoints use Bearer token. userId is extracted automatically from JWT by the Gateway — never pass it manually.",
+      "item": [
+        {
+          "name": "GET My Notifications (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications",
+            "description": "Returns all notifications for the logged-in ADMIN. userId extracted from JWT automatically."
+          }
+        },
+        {
+          "name": "GET My Notifications (TOURIST)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tourist_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications"
+          }
+        },
+        {
+          "name": "GET Unread Notifications (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/unread"
+          }
+        },
+        {
+          "name": "GET By Category: SYSTEM (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/category/SYSTEM",
+            "description": "Valid categories: SYSTEM, EVENT, REPORT, ALERT, GENERAL"
+          }
+        },
+        {
+          "name": "GET By Category: REPORT (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/category/REPORT"
+          }
+        },
+        {
+          "name": "PATCH Mark #1 as READ",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/1/read",
+            "description": "Replace '1' with the actual notification ID. Only owner can mark as read."
+          }
+        },
+        {
+          "name": "PATCH Mark ALL as READ",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/read-all"
+          }
+        },
+        {
+          "name": "POST Create Targeted Notification (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"subject\": \"Welcome to Tourism Gov\",\n  \"message\": \"Your registration has been completed successfully.\",\n  \"category\": \"SYSTEM\",\n  \"entityId\": 0\n}"
+            },
+            "description": "userId = RECIPIENT's ID. The SENDER is identified from your JWT token. Only ADMIN/MANAGER can call this."
+          }
+        },
+        {
+          "name": "POST Broadcast to All Users (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/notifications/broadcast",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 0,\n  \"subject\": \"System Maintenance Notice\",\n  \"message\": \"The system will undergo scheduled maintenance on Sunday from 2AM to 4AM.\",\n  \"category\": \"SYSTEM\"\n}"
+            },
+            "description": "Sends notification to ALL users. Only ADMIN/MANAGER/OFFICER can broadcast. Your identity comes from JWT token."
+          }
+        },
+        {
+          "name": "ERROR: No Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/tourismgov/v1/notifications",
+            "description": "Calling without a JWT token. Should return 401 UNAUTHORIZED with helpful message."
+          }
+        },
+        {
+          "name": "ERROR: TOURIST tries Broadcast (expect 403)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tourist_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/notifications/broadcast",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 0,\n  \"subject\": \"Unauthorized Broadcast\",\n  \"message\": \"This should be blocked.\",\n  \"category\": \"SYSTEM\"\n}"
+            }
+          }
+        },
+        {
+          "name": "ERROR: Invalid Category (expect 400 or 500)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/category/INVALID_CATEGORY"
+          }
+        },
+        {
+          "name": "ERROR: Mark Non-Existent ID as Read (expect 404)",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/notifications/999999/read"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "3. Reports (JWT auto-extracts userId & role)",
+      "description": "All report endpoints require JWT. Only ADMIN/MANAGER/OFFICER/AUDITOR roles can generate reports.",
+      "item": [
+        {
+          "name": "POST Generate SITE Report (ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": \"SITE\"\n}"
+            },
+            "description": "requesterId is automatically set from your JWT token. Valid scopes: SITE, EVENT, PROGRAM, COMPLIANCE"
+          }
+        },
+        {
+          "name": "POST Generate EVENT Report (ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": { "mode": "raw", "raw": "{\n  \"scope\": \"EVENT\"\n}" }
+          }
+        },
+        {
+          "name": "POST Generate PROGRAM Report (ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": { "mode": "raw", "raw": "{\n  \"scope\": \"PROGRAM\"\n}" }
+          }
+        },
+        {
+          "name": "POST Generate COMPLIANCE Report (ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": { "mode": "raw", "raw": "{\n  \"scope\": \"COMPLIANCE\"\n}" }
+          }
+        },
+        {
+          "name": "GET Report History (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/reports/history",
+            "description": "Returns all reports generated by the logged-in admin. userId from JWT."
+          }
+        },
+        {
+          "name": "GET Report History with Filters",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": {
+              "raw": "{{base_url}}/tourismgov/v1/reports/history?scope=SITE&date=2026-04-28",
+              "query": [
+                { "key": "scope", "value": "SITE", "description": "Optional: SITE, EVENT, PROGRAM, COMPLIANCE" },
+                { "key": "date",  "value": "2026-04-28", "description": "Optional: YYYY-MM-DD" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Download Report by ID",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/reports/download/1",
+            "description": "Replace '1' with actual report ID. Returns report as a .txt file download."
+          }
+        },
+        {
+          "name": "GET Dashboard Stats (ADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/dashboard/stats",
+            "description": "Aggregates stats from all services. Role extracted from JWT to determine access level."
+          }
+        },
+        {
+          "name": "ERROR: TOURIST tries Generate Report (expect 403)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tourist_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": { "mode": "raw", "raw": "{\n  \"scope\": \"SITE\"\n}" }
+          }
+        },
+        {
+          "name": "ERROR: Invalid Scope (expect 400)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/tourismgov/v1/reports/generate",
+            "body": { "mode": "raw", "raw": "{\n  \"scope\": \"INVALID\"\n}" }
+          }
+        },
+        {
+          "name": "ERROR: Download Non-Existent Report (expect 404)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}" }] },
+            "url": "{{base_url}}/tourismgov/v1/reports/download/999999"
+          }
+        }
+      ]
+    }
+  ]
+}

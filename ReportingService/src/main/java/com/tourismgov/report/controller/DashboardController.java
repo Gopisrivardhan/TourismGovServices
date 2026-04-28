@@ -20,7 +20,7 @@ public class DashboardController {
      */
     @GetMapping("/stats")
     public ResponseEntity<DashboardDTO> getDashboardStats(
-            @RequestHeader("X-User-Role") String role, 
+            @RequestHeader("X-User-Roles") String role, 
             @RequestHeader("X-User-Id") Long userId) {
         
         return ResponseEntity.ok(dashboardService.getDashboardMetrics(role, userId));

@@ -31,7 +31,9 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         
         // Add any endpoints here that do not require Gateway Auth Headers
-        return path.contains("/tourismgov/v1/tourist/create");
+        return path.contains("/tourismgov/v1/tourist/create")
+            || path.contains("/tourismgov/v1/tourist/internal/")
+            || path.contains("/internal/sync");
     }
 
     @Override

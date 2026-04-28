@@ -1,11 +1,8 @@
-package com.tourismgov.event.client;
+package com.tourismgov.tourist.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
-
-import com.tourismgov.event.dto.NotificationRequestDTO;
 
 @FeignClient(name = "NOTIFICATIONSERVICE")
 public interface NotificationClient {
@@ -17,7 +14,4 @@ public interface NotificationClient {
             @RequestParam("subject") String subject,
             @RequestParam("message") String message,
             @RequestParam("category") String category);
-
-    @PostMapping("/tourismgov/v1/notifications/broadcast")
-    void sendGlobalBroadcast(@RequestBody NotificationRequestDTO request);
 }

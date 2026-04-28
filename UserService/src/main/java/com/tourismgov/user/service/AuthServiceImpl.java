@@ -25,6 +25,9 @@ import com.tourismgov.user.exceptions.ResourceNotFoundException;
 import com.tourismgov.user.repository.UserRepository;
 import com.tourismgov.user.security.JwtUtil;
 import com.tourismgov.user.security.SecurityUtils;
+import com.tourismgov.user.client.TouristClient;
+import com.tourismgov.user.dto.TouristSyncRequest;
+import com.tourismgov.user.enums.Role;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
 	private final UserDetailsService userDetailsService;
 	private final JwtUtil jwtUtil;
 	private final AuditLogService auditLogService;
+	private final TouristClient touristClient;
 
 	// ---------------- REGISTER ----------------
 
@@ -75,6 +79,20 @@ public class AuthServiceImpl implements AuthService {
 
 		auditLogService.logActionInCurrentTransaction(savedUser.getUserId(), ACTION_USER_REGISTER,
 				RESOURCE_AUTH_SERVICE, STATUS_SUCCESS);
+
+		if (savedUser.getRole() == Role.TOURIST) {
+		    try {
+		        touristClient.syncTouristProfile(TouristSyncRequest.builder()
+		                .userId(savedUser.getUserId())
+		                .name(savedUser.getName())
+		                .email(savedUser.getEmail())
+		                .contactInfo(savedUser.getPhone())
+		                .build());
+		        log.info("Successfully synced tourist profile for user {}", savedUser.getUserId());
+		    } catch (Exception e) {
+		        log.error("Failed to sync tourist profile for user {}: {}", savedUser.getUserId(), e.getMessage());
+		    }
+		}
 
 		return mapToUserResponse(savedUser);
 	}
@@ -171,6 +189,8 @@ public class AuthServiceImpl implements AuthService {
 		dto.setStatus(user.getStatus());
 
 		dto.setPhone(user.getPhone());
+		dto.setCreatedAt(user.getCreatedAt());
+		dto.setUpdatedAt(user.getUpdatedAt());
 		return dto;
 	}
 

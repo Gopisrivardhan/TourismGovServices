@@ -8,35 +8,18 @@ import com.tourismgov.notification.enums.NotificationCategory;
 
 public interface NotificationService {
 
-    /**
-     * Creates a new notification for a specific user.
-     * Note: Expects userId and userEmail to be provided in the DTO.
-     */
     NotificationResponseDTO create(NotificationRequestDTO request);
 
-    /**
-     * Retrieves all notifications for a specific user.
-     */
     List<NotificationResponseDTO> getAll(Long userId);
 
-    /**
-     * Retrieves only UNREAD notifications for the user.
-     */
     List<NotificationResponseDTO> getUnread(Long userId);
 
-    /**
-     * Updates notification status to READ.
-     */
     NotificationResponseDTO markAsRead(Long notificationId, Long userId);
-    
-    /**
-     * Filters notifications by category for a user.
-     */
+
+    void markAllAsRead(Long userId);
+
     List<NotificationResponseDTO> getByCategory(Long userId, NotificationCategory category);
-    
-    /**
-     * Broadcasts a notification. 
-     * In a microservice, the request should contain the target audience data.
-     */
+
+    // Broadcast — userId in request body identifies the sender (role check done internally)
     void sendGlobalNotification(NotificationRequestDTO request);
 }

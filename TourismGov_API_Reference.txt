@@ -1,0 +1,432 @@
+================================================================
+  TOURISM GOV - COMPLETE API REFERENCE
+  All requests go through API Gateway: http://localhost:8383
+  Authentication: Bearer Token in Authorization header
+  Get token via: POST /tourismgov/v1/auth/login
+================================================================
+
+NOTE: You NEVER pass userId or role manually.
+      The Gateway reads your JWT token and injects them automatically.
+      Just attach the Bearer token — that's it.
+
+================================================================
+  1. AUTH APIs (No token required)
+================================================================
+
+[1.1] REGISTER USER
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/auth/register
+  Body   :
+    {
+      "name"     : "John Doe",
+      "email"    : "john@example.com",
+      "password" : "Admin@1234",
+      "phone"    : "9876543210",
+      "role"     : "ADMIN"
+    }
+  Roles  : ADMIN | MANAGER | OFFICER | AUDITOR | TOURIST
+  Returns: { userId, name, email, role, ... }
+
+[1.2] LOGIN
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/auth/login
+  Body   :
+    {
+      "email"    : "john@example.com",
+      "password" : "Admin@1234"
+    }
+  Returns: { token, userId, role }
+  → Copy token → use as: Authorization: Bearer <token>
+
+[1.3] UPDATE PASSWORD (logged-in user)
+  Method : PUT
+  URL    : http://localhost:8383/tourismgov/v1/auth/password/update
+  Auth   : Bearer Token
+  Body   :
+    {
+      "oldPassword" : "Admin@1234",
+      "newPassword" : "NewPass@567"
+    }
+
+[1.4] RESET PASSWORD (no login required)
+  Method : PUT
+  URL    : http://localhost:8383/tourismgov/v1/auth/password/reset
+  Body   :
+    {
+      "email"       : "john@example.com",
+      "newPassword" : "Reset@1234"
+    }
+
+================================================================
+  2. NOTIFICATION APIs
+     Auth: Bearer Token (userId extracted from JWT automatically)
+================================================================
+
+[2.1] GET ALL MY NOTIFICATIONS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/notifications
+  Auth   : Bearer Token (ADMIN or TOURIST)
+  Returns: [ { notificationId, subject, message, category, status, createdDate } ]
+
+[2.2] GET UNREAD NOTIFICATIONS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/notifications/unread
+  Auth   : Bearer Token
+  Returns: [ { notificationId, subject, status: "UNREAD", ... } ]
+
+[2.3] GET NOTIFICATIONS BY CATEGORY
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/notifications/category/{category}
+  Auth   : Bearer Token
+  Category values: SYSTEM | TRANSACTIONAL | ACTION_REQUIRED | MANAGEMENT | ANNOUNCEMENT | COMPLIANCE
+  Example: http://localhost:8383/tourismgov/v1/notifications/category/SYSTEM
+  Returns: [ { notificationId, category: "SYSTEM", ... } ]
+
+[2.4] MARK SINGLE NOTIFICATION AS READ
+  Method : PATCH
+  URL    : http://localhost:8383/tourismgov/v1/notifications/{id}/read
+  Auth   : Bearer Token (must be the owner)
+  Example: http://localhost:8383/tourismgov/v1/notifications/55/read
+  Returns: { notificationId, status: "READ", ... }
+
+[2.5] MARK ALL NOTIFICATIONS AS READ
+  Method : PATCH
+  URL    : http://localhost:8383/tourismgov/v1/notifications/read-all
+  Auth   : Bearer Token
+  Returns: 204 No Content
+
+[2.6] CREATE TARGETED NOTIFICATION (Admin only)
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/notifications
+  Auth   : Bearer Token (ADMIN / MANAGER)
+  Body   :
+    {
+      "userId"   : 5,
+      "subject"  : "Welcome Message",
+      "message"  : "Your account has been activated.",
+      "category" : "SYSTEM",
+      "entityId" : 0
+    }
+  Note   : userId = RECIPIENT's ID. Sender is from your JWT.
+  Returns: 201 Created + { notificationId, userId, status: "UNREAD", ... }
+
+[2.7] BROADCAST TO ALL USERS
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/notifications/broadcast
+  Auth   : Bearer Token (ADMIN / MANAGER / OFFICER only)
+  Body   :
+    {
+      "userId"   : 1,
+      "subject"  : "System Maintenance",
+      "message"  : "Scheduled maintenance Sunday 2-4 AM.",
+      "category" : "SYSTEM"
+    }
+  Note   : userId = YOUR userId (sender, for role verification)
+  Returns: 200 "Broadcast sent successfully to all users."
+
+--- NOTIFICATION ERROR CASES ---
+  No token         → 401 UNAUTHORIZED
+  Wrong method     → 405 METHOD NOT ALLOWED
+  Mark other user's notification  → 404 NOT FOUND
+  Non-existent id  → 404 NOT FOUND
+  TOURIST broadcasts → 403 FORBIDDEN
+  Invalid category → 400 BAD REQUEST
+  Missing subject  → 400 VALIDATION_FAILED
+
+================================================================
+  3. REPORT APIs
+     Auth: Bearer Token (ADMIN / MANAGER / OFFICER / AUDITOR only)
+================================================================
+
+[3.1] GENERATE REPORT
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/reports/generate
+  Auth   : Bearer Token (not TOURIST)
+  Body   :
+    { "scope": "SITE" }
+  Scope values: SITE | EVENT | PROGRAM | COMPLIANCE
+  Returns: { reportId, scope, generatedByName, generatedByRole, generatedDate, metrics }
+
+  Example body - SITE:
+    { "scope": "SITE" }
+  Example body - EVENT:
+    { "scope": "EVENT" }
+  Example body - PROGRAM:
+    { "scope": "PROGRAM" }
+  Example body - COMPLIANCE:
+    { "scope": "COMPLIANCE" }
+
+[3.2] GET REPORT HISTORY
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/reports/history
+  Auth   : Bearer Token
+  Returns: [ { reportId, scope, generatedDate, ... } ]
+
+[3.3] GET REPORT HISTORY WITH FILTERS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/reports/history?scope=SITE&date=2026-04-28
+  Auth   : Bearer Token
+  Params : scope (optional) = SITE | EVENT | PROGRAM | COMPLIANCE
+           date  (optional) = YYYY-MM-DD
+  Example: http://localhost:8383/tourismgov/v1/reports/history?scope=SITE
+  Example: http://localhost:8383/tourismgov/v1/reports/history?date=2026-04-28
+
+[3.4] DOWNLOAD REPORT
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/reports/download/{reportId}
+  Auth   : Bearer Token
+  Example: http://localhost:8383/tourismgov/v1/reports/download/41
+  Returns: Plain text report file content
+
+[3.5] DASHBOARD STATS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/dashboard/stats
+  Auth   : Bearer Token
+  Returns (ADMIN):
+    {
+      "role"   : "ADMIN",
+      "userId" : 1,
+      "metrics": {
+        "totalUsers"       : 91,
+        "totalHeritageSites": 5,
+        "totalEvents"      : 2,
+        "activePrograms"   : 3,
+        "totalBudget"      : "₹500000.0"
+      },
+      "unreadNotifications": 4
+    }
+  Returns (TOURIST):
+    {
+      "role"   : "TOURIST",
+      "metrics": {
+        "tripCompletionRate": "0.0%",
+        "upcomingEvents"    : 0
+      }
+    }
+
+--- REPORT ERROR CASES ---
+  No token           → 401 UNAUTHORIZED
+  TOURIST generates  → 403 FORBIDDEN
+  scope=INVALID      → 400 BAD REQUEST
+  Download unknown   → 404 NOT FOUND
+
+================================================================
+  4. SITE APIs (SiteService)
+     Auth: Bearer Token
+================================================================
+
+[4.1] CREATE HERITAGE SITE
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/sites
+  Auth   : Bearer Token (ADMIN / MANAGER / OFFICER)
+  Body   :
+    {
+      "name"        : "Golconda Fort",
+      "location"    : "Hyderabad, Telangana",
+      "description" : "Historic Qutb Shahi fortress",
+      "category"    : "HERITAGE",
+      "status"      : "OPEN"
+    }
+  Status values: OPEN | CLOSED_FOR_MAINTENANCE | RESTORATION_IN_PROGRESS | PERMANENTLY_CLOSED
+  Returns: { siteId, name, location, status }
+  Note: Automatically broadcasts a notification to all users.
+
+[4.2] GET ALL SITES
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/sites
+  Auth   : Bearer Token
+  Returns: [ { siteId, name, location, status } ]
+
+[4.3] GET SITE BY ID
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/sites/{siteId}
+  Auth   : Bearer Token
+  Example: http://localhost:8383/tourismgov/v1/sites/1
+
+[4.4] UPDATE SITE
+  Method : PUT
+  URL    : http://localhost:8383/tourismgov/v1/sites/{siteId}
+  Auth   : Bearer Token (ADMIN / MANAGER / OFFICER)
+  Body   : Same as create
+
+[4.5] DELETE (CLOSE) SITE
+  Method : DELETE
+  URL    : http://localhost:8383/tourismgov/v1/sites/{siteId}
+  Auth   : Bearer Token (ADMIN / MANAGER)
+  Note   : Soft delete — sets status to PERMANENTLY_CLOSED
+
+================================================================
+  5. PROGRAM APIs (ProgramService)
+     Auth: Bearer Token
+================================================================
+
+[5.1] CREATE PROGRAM
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/programs
+  Auth   : Bearer Token (ADMIN / MANAGER)
+  Body   :
+    {
+      "title"       : "Heritage Awareness 2026",
+      "description" : "Cultural awareness initiative",
+      "budget"      : 500000,
+      "startDate"   : "2026-05-01",
+      "endDate"     : "2026-08-31",
+      "status"      : "ACTIVE"
+    }
+  Returns: { programId, title, budget, status }
+  Note: Automatically sends a notification.
+
+[5.2] GET ALL PROGRAMS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/programs
+  Auth   : Bearer Token
+
+[5.3] GET PROGRAM BY ID
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/programs/{programId}
+  Auth   : Bearer Token
+
+[5.4] UPDATE PROGRAM STATUS
+  Method : PATCH
+  URL    : http://localhost:8383/tourismgov/v1/programs/{programId}/status?status=COMPLETED
+  Auth   : Bearer Token (ADMIN / MANAGER)
+  Status values: ACTIVE | COMPLETED | CANCELLED | PENDING
+
+[5.5] DELETE PROGRAM
+  Method : DELETE
+  URL    : http://localhost:8383/tourismgov/v1/programs/{programId}
+  Auth   : Bearer Token (ADMIN)
+
+================================================================
+  6. EVENT & BOOKING APIs (EventBookingService)
+     Auth: Bearer Token
+================================================================
+
+[6.1] CREATE EVENT
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/events
+  Auth   : Bearer Token (ADMIN / MANAGER / OFFICER)
+  Body   :
+    {
+      "siteId"   : 1,
+      "title"    : "Heritage Night Walk",
+      "location" : "Golconda Fort",
+      "date"     : "2026-06-15T18:00:00",
+      "status"   : "UPCOMING"
+    }
+  Note: date must be ISO datetime format (YYYY-MM-DDTHH:MM:SS)
+  Status values: UPCOMING | ONGOING | COMPLETED | CANCELLED
+
+[6.2] GET ALL EVENTS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/events
+  Auth   : Bearer Token
+
+[6.3] GET EVENT BY ID
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/events/{eventId}
+  Auth   : Bearer Token
+
+[6.4] CREATE BOOKING
+  Method : POST
+  URL    : http://localhost:8383/tourismgov/v1/events/{eventId}/bookings
+  Auth   : Bearer Token (TOURIST)
+  Body   :
+    {
+      "touristId"       : 1,
+      "numberOfTickets" : 2
+    }
+  Returns: { bookingId, touristId, eventId, status: "CONFIRMED" }
+  Note: Sends booking confirmation notification to tourist.
+
+[6.5] GET BOOKINGS FOR EVENT
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/events/{eventId}/bookings
+  Auth   : Bearer Token
+
+================================================================
+  7. USER APIs (UserService)
+     Auth: Bearer Token (ADMIN access)
+================================================================
+
+[7.1] GET ALL USERS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/users
+  Auth   : Bearer Token
+
+[7.2] GET USER BY ID
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/users/{id}
+  Auth   : Bearer Token
+  Example: http://localhost:8383/tourismgov/v1/users/1
+
+================================================================
+  8. AUDIT LOG APIs (UserService)
+     Auth: Bearer Token (ADMIN / AUDITOR / COMPLIANCE only)
+================================================================
+
+[8.1] GET ALL AUDIT LOGS
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/audit-logs
+  Auth   : Bearer Token (ADMIN / AUDITOR / COMPLIANCE)
+
+[8.2] GET AUDIT LOGS BY USER
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/audit-logs/user/{userId}
+  Auth   : Bearer Token
+
+[8.3] GET AUDIT LOGS BY ACTION
+  Method : GET
+  URL    : http://localhost:8383/tourismgov/v1/audit-logs/action/{action}
+  Auth   : Bearer Token
+  Example: http://localhost:8383/tourismgov/v1/audit-logs/action/SITE_CREATE
+
+================================================================
+  HOW TO USE IN POSTMAN
+================================================================
+
+Step 1: Register a user
+  POST http://localhost:8383/tourismgov/v1/auth/register
+  Body: { "name":"Admin", "email":"admin@test.com", "password":"Admin@1234",
+          "phone":"9876543210", "role":"ADMIN" }
+
+Step 2: Login
+  POST http://localhost:8383/tourismgov/v1/auth/login
+  Body: { "email":"admin@test.com", "password":"Admin@1234" }
+  → Copy the "token" from response
+
+Step 3: Use token in all requests
+  Headers: Authorization: Bearer <paste_token_here>
+  (Go to Headers tab in Postman, or use the Authorization tab → Bearer Token)
+
+Step 4: Test any API above
+  → userId and role are injected AUTOMATICALLY by the Gateway
+  → You never need to type them in request bodies (except where specified above)
+
+================================================================
+  NOTIFICATION CATEGORIES (exact values to use in Postman)
+================================================================
+  SYSTEM          - General system messages
+  TRANSACTIONAL   - Tourist status updates, booking confirmations
+  ACTION_REQUIRED - Pending approvals for officers
+  MANAGEMENT      - Budget alerts for managers
+  ANNOUNCEMENT    - Public announcements
+  COMPLIANCE      - Compliance related alerts
+
+================================================================
+  SERVICES & PORTS (internal — do NOT call directly)
+================================================================
+  API Gateway       : localhost:8383  ← USE THIS ONLY
+  ConfigServer      : localhost:8888
+  Eureka Dashboard  : localhost:8761
+  UserService       : localhost:1111  (internal)
+  NotificationService: localhost:7070 (internal)
+  ReportingService  : localhost:9090  (internal)
+  SiteService       : localhost:3030  (internal)
+  ProgramService    : localhost:4040  (internal)
+  EventBookingService: localhost:5050 (internal)
+  TouristService    : localhost:2020  (internal)
+
+================================================================
+  END OF API REFERENCE
+================================================================

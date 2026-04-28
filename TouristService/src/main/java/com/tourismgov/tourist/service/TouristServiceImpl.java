@@ -11,10 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.tourismgov.tourist.client.UserClient;
+import com.tourismgov.tourist.client.NotificationClient;
 import com.tourismgov.tourist.dto.TouristRequest;
 import com.tourismgov.tourist.dto.TouristResponse;
 import com.tourismgov.tourist.dto.TouristSummaryResponse;
 import com.tourismgov.tourist.dto.TouristUpdateRequest;
+import com.tourismgov.tourist.dto.TouristSyncRequest;
 import com.tourismgov.tourist.dto.UserDTO;
 import com.tourismgov.tourist.enums.Status;
 import com.tourismgov.tourist.exception.TouristErrorMessage;
@@ -33,6 +35,7 @@ public class TouristServiceImpl implements TouristService {
 	private final TouristRepository touristRepository;
 	private final TouristMapper touristMapper;
 	private final UserClient userClient;
+	private final NotificationClient notificationClient;
 
 	@Override
 	@Transactional
@@ -59,6 +62,19 @@ public class TouristServiceImpl implements TouristService {
 	    validateAdult(tourist);
 	    
 	    Tourist savedTourist = touristRepository.save(tourist);
+	    
+	    // Send private welcome notification
+	    try {
+	        notificationClient.sendSystemAlert(
+	                savedUser.getUserId(), 
+	                savedTourist.getTouristId(), 
+	                "Welcome to TourismGov!", 
+	                "Your registration was successful. Welcome aboard, " + savedUser.getName() + "!", 
+	                "SYSTEM");
+	    } catch (Exception e) {
+	        log.error("Failed to send welcome notification: {}", e.getMessage());
+	    }
+	    
 	    return touristMapper.toResponse(savedTourist);
 	}
 
@@ -111,7 +127,27 @@ public class TouristServiceImpl implements TouristService {
 		return page.map(t -> new TouristSummaryResponse(t.getTouristId(), t.getName(), t.getStatus()));
 	}
 
-	// Ownership validation method deleted to remove security logic
+	@Override
+	@Transactional
+	public void syncTouristProfile(TouristSyncRequest request) {
+	    log.info("Internal Sync: Creating tourist profile for user ID {}", request.getUserId());
+	    
+	    if (touristRepository.findById(request.getUserId()).isPresent()) {
+	        log.info("Tourist profile already exists for user ID {}. Skipping sync.", request.getUserId());
+	        return;
+	    }
+	    
+	    Tourist tourist = new Tourist();
+	    tourist.setTouristId(request.getUserId()); // Use same ID as User
+	    tourist.setUserId(request.getUserId());
+	    tourist.setName(request.getName());
+	    tourist.setContactInfo(request.getContactInfo());
+	    tourist.setStatus(Status.ACTIVE);
+	    // DOB, Gender, Address will remain null and can be updated later
+	    
+	    touristRepository.save(tourist);
+	    log.info("Internal Sync: Tourist profile saved for user ID {}", request.getUserId());
+	}
 
 	private Tourist findTouristByIdOrThrow(Long touristId) {
 		return touristRepository.findById(touristId).orElseThrow(() -> {

@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import com.tourismgov.user.dto.UserResponse;
 import com.tourismgov.user.entity.User;
@@ -26,6 +28,13 @@ public class UserServiceImpl implements UserService {
             .toList();
     }
 
+    @Override
+    public UserResponse getUserById(Long id) {
+        return userRepository.findById(id)
+            .map(this::toResponse)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
     private UserResponse toResponse(User user) {
         UserResponse dto = new UserResponse();
         dto.setUserId(user.getUserId());
@@ -34,6 +43,8 @@ public class UserServiceImpl implements UserService {
         dto.setRole(user.getRole());
         dto.setPhone(user.getPhone());
         dto.setStatus(user.getStatus());
+        dto.setCreatedAt(user.getCreatedAt());
+        dto.setUpdatedAt(user.getUpdatedAt());
         return dto;
     }
 }

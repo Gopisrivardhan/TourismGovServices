@@ -5,12 +5,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.core.annotation.Order;
 
 @Configuration
 @EnableWebSecurity
@@ -26,7 +29,8 @@ public class MicroserviceSecurityConfig {
     private final GatewayHeaderFilter gatewayHeaderFilter;
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    @Order(1)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
@@ -36,6 +40,8 @@ public class MicroserviceSecurityConfig {
                 // ==========================================
                 // Public Access: Allow anyone to create a new tourist profile
                 .requestMatchers(HttpMethod.POST, "/tourismgov/v1/tourist/create").permitAll()
+                // Internal: Service-to-service sync endpoint (no auth required)
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/tourist/internal/**").permitAll()
 
                 // Tourist/Admin Access: A tourist can view/update their own profile, Admins can manage them
                 .requestMatchers(HttpMethod.GET, "/tourismgov/v1/tourist/*").hasAnyRole(TOURIST, ADMIN, OFFICER, MANAGER)
@@ -64,5 +70,16 @@ public class MicroserviceSecurityConfig {
             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * Completely bypass Spring Security for public endpoints.
+     * This is more reliable than .permitAll() in the filter chain.
+     */
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring()
+                .requestMatchers("/tourismgov/v1/tourist/create",
+                                 "/tourismgov/v1/tourist/internal/**");
     }
 }

@@ -48,24 +48,21 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/tourismgov/v1/auth/password/update").authenticated()
 
                 // ==========================================
-                // 2. USER MANAGEMENT ENDPOINTS (/tourismgov/user/users)
+                // 2. USER MANAGEMENT ENDPOINTS (/tourismgov/v1/users)
                 // ==========================================
-                // Public Access: User registration via the direct user controller
                 .requestMatchers(HttpMethod.POST, "/tourismgov/v1/users").permitAll()
-                
-                // Internal Management: Only Admins and Managers should be able to pull the list of ALL users
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/users").hasAnyRole(ADMIN, MANAGER)
-                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/audit-logs").permitAll()
+                // GET /users and GET /users/{id} are also called by other microservices via Feign
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/users").permitAll()
+                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/users/{id}").permitAll()
 
                 // ==========================================
-                // 3. AUDIT LOG ENDPOINTS (/tourismgov/user/audit-logs)
+                // 3. AUDIT LOG ENDPOINTS (/tourismgov/v1/audit-logs)
                 // ==========================================
-                // Strict Internal Access: Audit logs are highly sensitive and should only be viewed by 
-                // Administrators, Auditors, and Compliance Officers.
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/audit-logs").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/audit-logs/user/*").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/audit-logs/action/*").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
-                .requestMatchers(HttpMethod.GET, "/tourismgov/v1/audit-logs/dates").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.POST, "/tourismgov/v1/audit-logs").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/tourismgov/v1/audit-logs").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.GET,  "/tourismgov/v1/audit-logs/user/*").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.GET,  "/tourismgov/v1/audit-logs/action/*").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
+                .requestMatchers(HttpMethod.GET,  "/tourismgov/v1/audit-logs/dates").hasAnyRole(ADMIN, AUDITOR, COMPLIANCE)
 
                 // Fallback: Any other request must be authenticated
                 .anyRequest().authenticated()

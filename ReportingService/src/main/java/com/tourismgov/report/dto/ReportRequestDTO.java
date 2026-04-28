@@ -10,6 +10,5 @@ public class ReportRequestDTO {
     @NotNull(message = "Scope is required")
     private ReportScope scope;
 
-    @NotNull(message = "Requester ID is required")
     private Long requesterId;
 }

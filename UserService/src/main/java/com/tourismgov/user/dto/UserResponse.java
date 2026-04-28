@@ -4,6 +4,7 @@ import com.tourismgov.user.enums.Role;
 import com.tourismgov.user.enums.Status;
 
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Data
 public class UserResponse {
@@ -14,4 +15,6 @@ public class UserResponse {
 	private String email;
 	private String phone;
 	private Status status;
+	private LocalDateTime createdAt;
+	private LocalDateTime updatedAt;
 }

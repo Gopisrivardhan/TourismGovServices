@@ -29,6 +29,7 @@ public class ReportServiceImpl implements ReportService {
     private final EventClient eventClient;
     private final ProgramClient programClient;
     private final ComplianceClient complianceClient;
+    private final NotificationClient notificationClient;
 
     @Override
     @Transactional
@@ -59,6 +60,18 @@ public class ReportServiceImpl implements ReportService {
                 .generatedByUserId(requester.getUserId())
                 .generatedDate(LocalDateTime.now())
                 .build());
+
+        try {
+            notificationClient.sendSystemAlert(
+                    requester.getUserId(),
+                    savedReport.getReportId(),
+                    "Report Generated",
+                    "Your report for scope " + request.getScope() + " has been successfully generated.",
+                    "SYSTEM"
+            );
+        } catch (Exception e) {
+            log.error("Failed to send notification for generated report: {}", e.getMessage());
+        }
 
         return mapToSummaryDTO(savedReport, requester.getName(), requester.getRole().name());
     }

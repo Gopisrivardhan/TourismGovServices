@@ -56,4 +56,9 @@ public interface TouristService {
      */
     public Page<TouristSummaryResponse> getTouristSummariesByStatus(Status status, Pageable pageable);
 
+    /**
+     * Internal method to synchronize a tourist profile from the User Service.
+     */
+    public void syncTouristProfile(com.tourismgov.tourist.dto.TouristSyncRequest request);
+
 }

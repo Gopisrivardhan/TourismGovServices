@@ -18,6 +18,7 @@ import com.tourismgov.tourist.dto.TouristRequest;
 import com.tourismgov.tourist.dto.TouristResponse;
 import com.tourismgov.tourist.dto.TouristSummaryResponse;
 import com.tourismgov.tourist.dto.TouristUpdateRequest;
+import com.tourismgov.tourist.dto.TouristSyncRequest;
 import com.tourismgov.tourist.enums.Status;
 import com.tourismgov.tourist.service.TouristService;
 
@@ -69,6 +70,14 @@ public class TouristController {
 			Pageable pageable) {
 		Page<TouristSummaryResponse> response = touristService.getTouristSummariesByStatus(status, pageable);
 		return ResponseEntity.ok(response);
+	}
+
+	// Internal Sync
+	@PostMapping("/internal/sync")
+	public ResponseEntity<Void> syncTouristProfile(@RequestBody TouristSyncRequest request) {
+		log.info("API: internal sync tourist profile called for user {}", request.getUserId());
+		touristService.syncTouristProfile(request);
+		return ResponseEntity.ok().build();
 	}
 
 }

@@ -1,0 +1,98 @@
+=====================================================
+               AUTH SERVICE ENDPOINTS
+=====================================================
+API Gateway runs on http://localhost:8383
+
+1. Register User
+Method: POST
+URL: http://localhost:8383/tourismgov/v1/auth/register
+Body (application/json):
+{
+    "name": "Admin User",
+    "email": "admin@tourismgov.com",
+    "password": "Password123!",
+    "role": "ADMIN",
+    "phone": "1234567890",
+    "status": "ACTIVE"
+}
+(Valid Roles: ADMIN, TOURIST, MANAGER)
+
+-----------------------------------------------------
+2. Login User (Generate JWT Token)
+Method: POST
+URL: http://localhost:8383/tourismgov/v1/auth/login
+Body (application/json):
+{
+    "email": "admin@tourismgov.com",
+    "password": "Password123!"
+}
+(The response will contain the "token" which you use as the Bearer Token for the other requests below)
+
+
+
+=====================================================
+          NOTIFICATION SERVICE ENDPOINTS
+=====================================================
+API Gateway runs on http://localhost:8383
+Authorization for all endpoints: Bearer Token (JWT)
+
+1. Get All Notifications
+Method: GET
+URL: http://localhost:8383/tourismgov/v1/notifications
+
+-----------------------------------------------------
+2. Get Unread Notifications
+Method: GET
+URL: http://localhost:8383/tourismgov/v1/notifications/unread
+
+-----------------------------------------------------
+3. Mark Notification as Read
+Method: PATCH
+URL: http://localhost:8383/tourismgov/v1/notifications/1/read
+(Replace '1' with the actual notificationId you want to mark as read)
+
+-----------------------------------------------------
+4. Send Global Broadcast
+Method: POST
+URL: http://localhost:8383/tourismgov/v1/notifications/broadcast
+Body (application/json):
+{
+    "userId": 1,
+    "entityId": 1,
+    "subject": "Test Global Broadcast",
+    "message": "This is a global broadcast message for all users.",
+    "category": "SYSTEM"
+}
+
+
+
+=====================================================
+            REPORTING SERVICE ENDPOINTS
+=====================================================
+API Gateway runs on http://localhost:8383
+Authorization for all endpoints: Bearer Token (JWT)
+
+1. Get Dashboard Metrics
+Method: GET
+URL: http://localhost:8383/tourismgov/v1/dashboard/stats
+
+-----------------------------------------------------
+2. Generate Report
+Method: POST
+URL: http://localhost:8383/tourismgov/v1/reports/generate
+Body (application/json):
+{
+    "scope": "SITE"
+}
+(Other valid scopes: EVENT, PROGRAM, COMPLIANCE)
+
+-----------------------------------------------------
+3. Get Report History
+Method: GET
+URL: http://localhost:8383/tourismgov/v1/reports/history?scope=SITE
+
+-----------------------------------------------------
+4. Download Report
+Method: GET
+URL: http://localhost:8383/tourismgov/v1/reports/download/1
+(Replace '1' with the actual reportId generated from endpoint 2)

@@ -17,6 +17,8 @@ import com.tourismgov.event.client.UserClient;
 import com.tourismgov.event.dto.AuditLogRequest;
 import com.tourismgov.event.dto.CreateEventRequest;
 import com.tourismgov.event.dto.EventResponse;
+import com.tourismgov.event.dto.NotificationRequestDTO;
+import com.tourismgov.event.dto.EventResponse;
 import com.tourismgov.event.dto.ProgramDto;
 import com.tourismgov.event.dto.UpdateEventStatusRequest;
 import com.tourismgov.event.entity.Event;
@@ -96,7 +98,18 @@ public class EventServiceImpl implements EventService {
         String message = String.format("A new event '%s' has been scheduled at %s on %s.", 
                 saved.getTitle(), saved.getLocation(), saved.getDate().toLocalDate());
                 
-        sendSystemAlertSafe(currentUserId, saved.getEventId(), "New Event Scheduled!", message, "EVENT");
+        try {
+            NotificationRequestDTO broadcastReq = NotificationRequestDTO.builder()
+                    .userId(currentUserId)
+                    .entityId(saved.getEventId())
+                    .subject("New Event Scheduled!")
+                    .message(message)
+                    .category("EVENT")
+                    .build();
+            notificationClient.sendGlobalBroadcast(broadcastReq);
+        } catch (Exception e) {
+            log.error("Failed to push global broadcast to NOTIFICATION-SERVICE: {}", e.getMessage());
+        }
 
         return mapToResponse(saved);
     }

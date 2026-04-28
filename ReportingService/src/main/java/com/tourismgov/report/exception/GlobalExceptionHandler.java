@@ -51,18 +51,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, status);
     }
 
-    // 3. Handles Missing Headers (X-User-Id)
+    // 3. Handles Missing Headers (X-User-Id / X-User-Roles injected by Gateway from JWT)
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
-        log.warn("Header Missing: {}", ex.getHeaderName());
-        
+        log.warn("Required header missing: '{}'. Client may be bypassing the API Gateway.", ex.getHeaderName());
+
         ErrorResponse error = new ErrorResponse(
                 LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                "BAD_REQUEST",
-                "Required header '" + ex.getHeaderName() + "' is missing."
+                HttpStatus.UNAUTHORIZED.value(),
+                "UNAUTHORIZED",
+                "Required header '" + ex.getHeaderName() + "' is missing. " +
+                "Please ensure you are sending a valid JWT Bearer token to the API Gateway (port 8383). " +
+                "Headers are injected automatically — do not call microservice ports directly."
         );
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
     }
 
     // 4. NEW: Handles URL Parameter Mismatches (Invalid Date Formats)

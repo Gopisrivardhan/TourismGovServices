@@ -4,7 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-@FeignClient(name = "NOTIFICATION-SERVICE")
+@FeignClient(name = "NOTIFICATIONSERVICE")
 public interface NotificationClient {
 
     /**
@@ -13,9 +13,9 @@ public interface NotificationClient {
     @PostMapping("/tourismgov/v1/notifications/system-alert")
     void sendSystemAlert(
             @RequestParam("userId") Long userId,
-            @RequestParam("referenceId") Long referenceId,
+            @RequestParam("entityId") Long entityId,
             @RequestParam("subject") String subject,
             @RequestParam("message") String message,
-            @RequestParam("role") String role
+            @RequestParam("category") String category
     );
 }

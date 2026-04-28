@@ -8,15 +8,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.tourismgov.notification.dto.UserDTO;
 
-@FeignClient(name = "user-service") // Eureka Service Name
+@FeignClient(name = "USER-SERVICE")
 public interface UserClient {
-    
-    @GetMapping("/api/users/{id}")
+
+    @GetMapping("/tourismgov/v1/users/{id}")
     UserDTO getUserById(@PathVariable("id") Long id);
 
-    @GetMapping("/api/users/exists/{id}")
-    boolean existsById(@PathVariable("id") Long id);
-
-    @GetMapping("/api/users/internal/all")
+    @GetMapping("/tourismgov/v1/users")
     List<UserDTO> getAllUsers();
 }
